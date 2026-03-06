@@ -53,21 +53,32 @@
             <div class="notion-form-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
                 <div class="notion-input-group" style="grid-column: span 2;">
                     <label class="notion-label">Cliente</label>
-                    <input class="notion-input-modern" placeholder="Filtrar clientes..." @bind="clienteFiltro" @bind:event="oninput" disabled="@(!EsEditable)" />
-                    <InputSelect @bind-Value="presupuesto.ClienteId" class="notion-input-modern" @onchange="OnClienteChanged" disabled="@(!EsEditable)">
-                        <option value="0">Selecciona un cliente</option>
-                        @foreach (var cliente in ClientesFiltrados)
-                        {
-                            <option value="@cliente.ClienteId">@cliente.Nombre (@cliente.NIF)</option>
-                        }
-                    </InputSelect>
-                    @if (aplicaRecargoEquivalencia)
-                    {
-                        <div class="notion-hint" style="margin-top: 6px; font-size: 12px; color: #8b8b8b;">
-                            Cliente en régimen de recargo de equivalencia.
+                    <div style="display: flex; gap: 8px; align-items: start;">
+                        <div style="flex: 1;">
+                            <input type="text"
+                                   class="notion-input-modern"
+                                   placeholder="Selecciona un cliente..."
+                                   value="@(clienteSeleccionado != null ? $"{clienteSeleccionado.Nombre} ({clienteSeleccionado.NIF})" : "")"
+                                   readonly
+                                   disabled="@(!EsEditable)"
+                                   style="width: 100%;" />
+                            @if (aplicaRecargoEquivalencia)
+                            {
+                                <div class="notion-hint" style="margin-top: 6px; font-size: 12px; color: #8b8b8b;">
+                                    Cliente en régimen de recargo de equivalencia.
+                                </div>
+                            }
                         </div>
-                    }
+                        <button type="button"
+                                class="btn-modern-secondary"
+                                @onclick="AbrirModalClientesAsync"
+                                disabled="@(!EsEditable)"
+                                style="padding: 8px 16px; height: 40px;">
+                            <i class="bi bi-search"></i>
+                        </button>
+                    </div>
                 </div>
+
 
                 <div class="notion-input-group">
                     <label class="notion-label">Serie</label>
@@ -524,6 +535,65 @@
 }
 
 
+@if (mostrarModalClientes)
+{
+    <div class="notion-modal-overlay" @onclick="CerrarModalClientes">
+        <div class="notion-modal-productos" @onclick:stopPropagation="true">
+            <div class="notion-modal-header">
+                <h3>Selecciona un cliente</h3>
+                <button type="button" class="notion-modal-close" @onclick="CerrarModalClientes" aria-label="Cerrar">×</button>
+            </div>
+            <div class="notion-modal-body">
+                <div class="notion-search-wrapper" style="max-width: 100%; border: 1px solid #edeceb; margin-bottom: 16px;">
+                    <i class="bi bi-search" style="font-size: 14px;"></i>
+                    <input class="notion-search-input"
+                           placeholder="Buscar cliente por nombre o NIF..."
+                           value="@busquedaCliente"
+                           @oninput="@(async (ChangeEventArgs e) => { busquedaCliente = e?.Value?.ToString() ?? string.Empty; await BuscarClientesAsync(); })" />
+                </div>
+
+                @if (clientes == null || !clientes.Any())
+                {
+                    <div class="notion-empty" style="padding: 40px; text-align: center; color: rgba(55, 53, 47, 0.5);">
+                        No hay clientes disponibles.
+                    </div>
+                }
+                else
+                {
+                    <div style="overflow-x: auto;">
+                        <table class="notion-table" style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="border-bottom: 1px solid var(--notion-border);">
+                                    <th style="padding: 12px 10px; text-align: left; font-size: 11px; color: rgba(55, 53, 47, 0.6); font-weight: 600; text-transform: uppercase;">NIF</th>
+                                    <th style="padding: 12px 10px; text-align: left; font-size: 11px; color: rgba(55, 53, 47, 0.6); font-weight: 600; text-transform: uppercase;">Nombre</th>
+                                    <th style="padding: 12px 10px; text-align: center; font-size: 11px; color: rgba(55, 53, 47, 0.6); font-weight: 600; text-transform: uppercase; width: 150px;">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var cliente in clientes)
+                                {
+                                    <tr style="border-bottom: 1px solid #f1f1f0;">
+                                        <td style="padding: 12px 10px; font-size: 14px;">
+                                            <span class="notion-code-text">@cliente.NIF</span>
+                                        </td>
+                                        <td style="padding: 12px 10px; font-size: 14px;">@cliente.Nombre</td>
+                                        <td style="padding: 12px 10px; text-align: center;">
+                                            <button type="button" class="btn-modern" @onclick="() => SeleccionarCliente(cliente)">
+                                                <i class="bi bi-check-lg"></i> Seleccionar
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+
 
 
 
@@ -543,8 +613,11 @@
 
     private List<SerieDto> SeriesAlbaranes = new();
 
-    private string clienteFiltro = string.Empty;
+    
     private string busquedaProducto = string.Empty;
+    private bool mostrarModalClientes;
+    private string busquedaCliente = string.Empty;
+    private ClienteDto? clienteSeleccionado;
     private bool mostrarModalProductos;
     private bool cargandoProductos;
     private bool isSaving;
@@ -570,11 +643,6 @@
     [Inject] private ConfirmDialogService confirmDialog { get; set; } = null!;
 
     private bool EsEditable => Id == 0 || estadoPresupuesto == "Borrador";
-    private IEnumerable<ClienteDto> ClientesFiltrados => string.IsNullOrWhiteSpace(clienteFiltro)
-        ? clientes
-        : clientes.Where(c =>
-            c.Nombre.Contains(clienteFiltro, StringComparison.OrdinalIgnoreCase)
-            || c.NIF.Contains(clienteFiltro, StringComparison.OrdinalIgnoreCase));
 
     protected override async Task OnInitializedAsync()
     {
@@ -679,6 +747,7 @@
 
         editContext = new EditContext(presupuesto);
         AplicarConfiguracionCliente();
+        clienteSeleccionado = clientes.FirstOrDefault(c => c.ClienteId == response.ClienteId);
     }
 
     private Task OnClienteChanged(ChangeEventArgs args)
@@ -1025,6 +1094,62 @@
     private void CerrarModalProductos()
     {
         mostrarModalProductos = false;
+    }
+
+    private async Task AbrirModalClientesAsync()
+    {
+        mostrarModalClientes = true;
+        busquedaCliente = string.Empty;
+        await CargarClientesParaModalAsync();
+    }
+
+    private void CerrarModalClientes()
+    {
+        mostrarModalClientes = false;
+        busquedaCliente = string.Empty;
+    }
+
+    private async Task BuscarClientesAsync()
+    {
+        await CargarClientesParaModalAsync();
+    }
+
+    private async Task CargarClientesParaModalAsync()
+    {
+        try
+        {
+            var endpoint = "api/clientes?page=1&pageSize=500";
+            var response = await ApiService.GetAsync<PaginatedResponseDto<ClienteDto>>(endpoint);
+            clientes = response?.Items ?? new List<ClienteDto>();
+
+            clientes = clientes.Where(c => c.Activo).ToList();
+
+            //Filtrar en el cliente si hay busqueda
+            if (!string.IsNullOrWhiteSpace(busquedaCliente))
+            {
+                var filtro = busquedaCliente.ToLower();
+                clientes = clientes.Where(c =>
+                    c.Nombre.ToLower().Contains(filtro) ||
+                    c.NIF.ToLower().Contains(filtro)
+                ).ToList();
+
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error cargando clientes: {ex.Message}");
+            clientes = new List<ClienteDto>();
+        }
+    }
+
+    private void SeleccionarCliente(ClienteDto cliente)
+    {
+        clienteSeleccionado = cliente;
+        presupuesto.ClienteId = cliente.ClienteId;
+        AplicarConfiguracionCliente();
+        ActualizarClienteRecargo();
+        CerrarModalClientes();
+        StateHasChanged();
     }
 
     private async Task CargarProductosAsync(string? search = null)

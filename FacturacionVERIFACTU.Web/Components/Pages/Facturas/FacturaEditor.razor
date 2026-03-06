@@ -73,19 +73,32 @@
 
         <div class="editor-card">
             <div class="notion-form-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
-                <div class="notion-input-group">
-                    <label class="notion-label">Cliente *</label>
-                    <select class="notion-input-modern"
-                            value="@factura.ClienteId"
-                            @onchange="OnClienteChanged"
-                            disabled="@(!EsEditable)">
-                        <option value="0">Selecciona un cliente</option>
-                        @foreach (var cliente in clientes)
-                        {
-                            <option value="@cliente.ClienteId">@cliente.Nombre (@cliente.NIF)</option>
-                        }
-                    </select>
-                    <ValidationMessage For="() => factura.ClienteId" class="notion-error" />
+                <div class="notion-input-group" style="grid-column: span 2;">
+                    <label class="notion-label">Cliente</label>
+                    <div style="display: flex; gap: 8px; align-items: start;">
+                        <div style="flex: 1;">
+                            <input type="text"
+                                   class="notion-input-modern"
+                                   placeholder="Selecciona un cliente..."
+                                   value="@(clienteSeleccionado != null ? $"{clienteSeleccionado.Nombre} ({clienteSeleccionado.NIF})" : "")"
+                                   readonly
+                                   disabled="@(!EsEditable)"
+                                   style="width: 100%;" />
+                            @if (aplicaRecargoEquivalencia)
+                            {
+                                <div class="notion-hint" style="margin-top: 6px; font-size: 12px; color: #8b8b8b;">
+                                    Cliente en régimen de recargo de equivalencia.
+                                </div>
+                            }
+                        </div>
+                        <button type="button"
+                                class="btn-modern-secondary"
+                                @onclick="AbrirModalClientesAsync"
+                                disabled="@(!EsEditable)"
+                                style="padding: 8px 16px; height: 40px;">
+                            <i class="bi bi-search"></i>
+                        </button>
+                    </div>
                 </div>
 
                 <div class="notion-input-group">
@@ -394,7 +407,118 @@
     </div>
 }
 
+
+@if (mostrarModalClientes)
+{
+    <div class="notion-modal-overlay" @onclick="CerrarModalClientes">
+        <div class="notion-modal-productos" @onclick:stopPropagation="true">
+            <div class="notion-modal-header">
+                <h3>Selecciona un cliente</h3>
+                <button type="button" class="notion-modal-close" @onclick="CerrarModalClientes" aria-label="Cerrar">×</button>
+            </div>
+            <div class="notion-modal-body">
+                <div class="notion-search-wrapper" style="max-width: 100%; border: 1px solid #edeceb; margin-bottom: 16px;">
+                    <i class="bi bi-search" style="font-size: 14px;"></i>
+                    <input class="notion-search-input"
+                           placeholder="Buscar cliente por nombre o NIF..."
+                           value="@busquedaCliente"
+                           @oninput="@(async (ChangeEventArgs e) => { busquedaCliente = e?.Value?.ToString() ?? string.Empty; await BuscarClientesAsync(); })" />
+                </div>
+
+                @if (clientes == null || !clientes.Any())
+                {
+                    <div class="notion-empty" style="padding: 40px; text-align: center; color: rgba(55, 53, 47, 0.5);">
+                        No hay clientes disponibles.
+                    </div>
+                }
+                else
+                {
+                    <div style="overflow-x: auto;">
+                        <table class="notion-table" style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="border-bottom: 1px solid var(--notion-border);">
+                                    <th style="padding: 12px 10px; text-align: left; font-size: 11px; color: rgba(55, 53, 47, 0.6); font-weight: 600; text-transform: uppercase;">NIF</th>
+                                    <th style="padding: 12px 10px; text-align: left; font-size: 11px; color: rgba(55, 53, 47, 0.6); font-weight: 600; text-transform: uppercase;">Nombre</th>
+                                    <th style="padding: 12px 10px; text-align: center; font-size: 11px; color: rgba(55, 53, 47, 0.6); font-weight: 600; text-transform: uppercase; width: 150px;">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var cliente in clientes)
+                                {
+                                    <tr style="border-bottom: 1px solid #f1f1f0;">
+                                        <td style="padding: 12px 10px; font-size: 14px;">
+                                            <span class="notion-code-text">@cliente.NIF</span>
+                                        </td>
+                                        <td style="padding: 12px 10px; font-size: 14px;">@cliente.Nombre</td>
+                                        <td style="padding: 12px 10px; text-align: center;">
+                                            <button type="button" class="btn-modern" @onclick="() => SeleccionarCliente(cliente)">
+                                                <i class="bi bi-check-lg"></i> Seleccionar
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@* Modal para marcar como pagada *@
+@if (mostrarModalPago)
+{
+    <div class="notion-modal-overlay" @onclick="CerrarModalPago">
+        <div class="notion-modal-productos" style="max-width: 500px;" @onclick:stopPropagation="true">
+            <div class="notion-modal-header">
+                <h3>Marcar factura como pagada</h3>
+                <button type="button" class="notion-modal-close" @onclick="CerrarModalPago" aria-label="Cerrar">×</button>
+            </div>
+            <div class="notion-modal-body">
+                <div class="notion-form-grid" style="display: grid; grid-template-columns: 1fr; gap: 16px;">
+                    <div class="notion-input-group">
+                        <label class="notion-label">Fecha de pago *</label>
+                        <input type="date" @bind="pagoForm.FechaPago" class="notion-input-modern" />
+                    </div>
+                    <div class="notion-input-group">
+                        <label class="notion-label">Importe *</label>
+                        <input type="number" @bind="pagoForm.Importe" class="notion-input-modern" step="0.01" readonly style="background: #f8fafc;" />
+                    </div>
+                    <div class="notion-input-group">
+                        <label class="notion-label">Forma de pago *</label>
+                        <select @bind="pagoForm.FormaPago" class="notion-input-modern">
+                            <option value="">Selecciona...</option>
+                            <option value="Efectivo">Efectivo</option>
+                            <option value="Transferencia">Transferencia bancaria</option>
+                            <option value="Tarjeta">Tarjeta</option>
+                            <option value="Pagaré">Pagaré</option>
+                            <option value="Compensación">Compensación</option>
+                            <option value="Otro">Otro</option>
+                        </select>
+                    </div>
+                    <div class="notion-input-group">
+                        <label class="notion-label">Observaciones</label>
+                        <textarea @bind="pagoForm.Observaciones" class="notion-input-modern" rows="3" placeholder="Referencia, número de operación..."></textarea>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 12px; margin-top: 20px; justify-content: flex-end;">
+                    <button type="button" class="btn-modern-secondary" @onclick="CerrarModalPago">
+                        Cancelar
+                    </button>
+                    <button type="button" class="btn-modern" @onclick="ConfirmarPagoIndividual" disabled="@(string.IsNullOrEmpty(pagoForm.FormaPago))">
+                        <i class="bi bi-check-circle"></i> Confirmar pago
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+
 @code {
+
+
 
     [Parameter] public int Id { get; set; }
 
@@ -422,6 +546,12 @@
     private string successMessage = string.Empty;
     private string? avisoImpuestos;
     private string busquedaProducto = string.Empty;
+    private bool mostrarModalClientes;
+    private string busquedaCliente = string.Empty;
+    private bool mostrarModalPago;
+    private PagoFormModel pagoForm = new();
+
+    private ClienteDto? clienteSeleccionado;
     private bool aplicaRecargoEquivalencia;
 
     private bool EsEditable => Id == 0 || (estadoFactura == "Emitida" && !facturaEnviadaVERIFACTU);
@@ -503,6 +633,7 @@
             }).ToList();
 
             ActualizarClienteRecargo();
+            clienteSeleccionado = clientes.FirstOrDefault(c => c.ClienteId == response.ClienteId);
         }
         catch (Exception ex)
         {
@@ -600,7 +731,7 @@
                 errorMessage = string.Empty;
                 StateHasChanged();
 
-              
+
 
                 _ = Task.Delay(3000).ContinueWith(_ =>
                 {
@@ -672,6 +803,67 @@
     {
         mostrarModalProductos = false;
         busquedaProducto = string.Empty;
+    }
+
+    private async Task AbrirModalClientesAsync()
+    {
+        mostrarModalClientes = true;
+        busquedaCliente = string.Empty;
+        await CargarClientesParaModalAsync();
+    }
+
+    private void CerrarModalClientes()
+    {
+        mostrarModalClientes = false;
+        busquedaCliente = string.Empty;
+    }
+
+    private async Task BuscarClientesAsync()
+    {
+        await CargarClientesParaModalAsync();
+    }
+
+    private async Task CargarClientesParaModalAsync()
+    {
+        try
+        {
+            var endpoint = "api/clientes?page=1&pageSize=500";
+            var response = await ApiService.GetAsync<PaginatedResponseDto<ClienteDto>>(endpoint);
+            clientes = response?.Items ?? new List<ClienteDto>();
+
+            clientes = clientes.Where(c => c.Activo).ToList();
+
+            //Filtrar en el cliente si hay busqueda
+            if (!string.IsNullOrWhiteSpace(busquedaCliente))
+            {
+                var filtro = busquedaCliente.ToLower();
+                clientes = clientes.Where(c =>
+                    c.Nombre.ToLower().Contains(filtro) ||
+                    c.NIF.ToLower().Contains(filtro)
+                ).ToList();
+            }
+        }
+        catch(Exception ex)
+        {
+            Console.WriteLine($"Error cargando clientes: {ex.Message}");
+            clientes = new List<ClienteDto>();
+        }
+    }
+
+    private void SeleccionarCliente(ClienteDto cliente)
+    {
+        clienteSeleccionado = cliente;
+        factura.ClienteId = cliente.ClienteId;
+
+        //Aplicar retencion por defecto del cliente si es nueva factura
+        if(Id == 0 && (!factura.PorcentajeRetencion.HasValue || factura.PorcentajeRetencion == 0))
+        {
+            factura.PorcentajeRetencion = cliente.PorcentajeRetencionDefecto;
+        }
+
+        ActualizarClienteRecargo();
+        CerrarModalClientes();
+        StateHasChanged();
     }
 
     private async Task CargarProductosAsync(string? search = null)
@@ -803,6 +995,19 @@
 
     private void CambiarEstado(string nuevoEstado)
     {
+        if(nuevoEstado == "Pagada")
+        {
+            pagoForm = new PagoFormModel
+            {
+                FechaPago = DateTime.Today,
+                Importe = TotalFactura,
+                FormaPago ="Transferencia"
+            };
+            mostrarModalPago = true;
+            return;
+        }
+
+
         var options = new ConfirmDialogOptions(
             $"¿Cambiar estado a {nuevoEstado}?",
             $"La factura pasará de {estadoFactura} a {nuevoEstado}.",
@@ -814,20 +1019,7 @@
         {
             try
             {
-                if (nuevoEstado == "Pagada")
-                {
-                    // Marcar como pagada
-                    var dto = new MarcarComoPagadaDto
-                    {
-                        FechaPago = DateTime.Now,
-                        Importe = TotalFactura,
-                        FormaPago = "Transferencia"
-                    };
-
-                    await ApiService.PatchAsync<MarcarComoPagadaDto, FacturaResponseDto>($"api/facturas/{Id}/marcar-pagada", dto);
-
-                }
-                else if (nuevoEstado == "Anulada")
+                if (nuevoEstado == "Anulada")
                 {
                     // Anular
                     var dto = new AnularFacturaDto { Motivo = "Anulación manual" };
@@ -850,6 +1042,50 @@
                 await InvokeAsync(StateHasChanged);
             }
         });
+    }
+
+    private void CerrarModalPago()
+    {
+        mostrarModalPago = false;
+        pagoForm = new();
+    }
+
+    private async Task ConfirmarPagoIndividual()
+    {
+        if (string.IsNullOrEmpty(pagoForm.FormaPago))
+        {
+            errorMessage = "Selecciona una forma de pago";
+            return;
+        }
+
+        try
+        {
+            var dto = new MarcarComoPagadaDto
+                {
+                    FechaPago = pagoForm.FechaPago,
+                    Importe = pagoForm.Importe,
+                    FormaPago = pagoForm.FormaPago,
+                    Observaciones = pagoForm.Observaciones
+                };
+
+            await ApiService.PatchAsync<MarcarComoPagadaDto, FacturaResponseDto>($"api/facturas/{Id}/marcar-pagada", dto);
+
+            CerrarModalPago();
+            await CargarFacturaAsync();
+            successMessage = "Factura marcada como pagada correctamente";
+            await InvokeAsync(StateHasChanged);
+
+            _ = Task.Delay(3000).ContinueWith(_ =>
+            {
+                successMessage = string.Empty;
+                InvokeAsync(StateHasChanged);
+            });
+        }
+        catch(Exception ex)
+        {
+            errorMessage = $"Error al marcar como pagada: {ex.Message}";
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private void EnviarAVerifactu()
@@ -904,6 +1140,14 @@
     private void Cancelar()
     {
         NavManager.NavigateTo("/facturas");
+    }
+
+    private class PagoFormModel
+    {
+        public DateTime FechaPago{ get; set; } = DateTime.Today;
+        public decimal Importe {get;set;}
+        public string FormaPago{ get; set; }
+        public string? Observaciones{ get; set; }
     }
 
     private sealed class FacturaFormModel

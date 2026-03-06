@@ -1722,3 +1722,20 @@ input[type=number] {
     color: rgba(15,23,42,.55);
     font-size: 14px;
 }
+
+/* Fix bulk-actions dentro de ui-card: botones siempre en fila */
+.ui-card .bulk-actions {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    gap: 8px !important;
+}
+
+    .ui-card .bulk-actions .btn-modern,
+    .ui-card .bulk-actions .btn-modern-secondary,
+    .ui-card .bulk-actions .bulk-btn {
+        width: auto !important;
+        white-space: nowrap !important;
+        flex-shrink: 0 !important;
+    }

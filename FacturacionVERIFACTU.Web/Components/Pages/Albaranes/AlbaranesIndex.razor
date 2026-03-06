@@ -35,34 +35,37 @@
                 </button>
             }
         </div>
+        <div class="notion-search-wrapper" style="border: 1px solid #edeceb; max-width: 260px; height: 32px; display: flex; align-items: center; padding: 0 8px;border-radius: 6px;">
+            <i class="bi bi-search" style="font-size: 13px; color: #787774;"></i>
+            <input class="notion-search-input" placeholder="Buscar cliente..." @bind="busquedaCliente" @bind:event="oninput" @bind:after="StateHasChanged" style="outline: none; box-shadow: none; border: none; background: transparent; height: 100%; padding: 0 6px; font-size: 13px;" />
+        </div>
     </div>
 
     <!-- Barra de acciones masivas (cuando hay selección) -->
     @if (seleccionados.Any())
     {
-        <div class="ui-card" style="padding: 14px; margin-bottom: 24px;">
+        <div style="display: flex; flex-direction: row; flex-wrap: nowrap; gap: 8px; align-items: center; justify-content: flex-end;">
             <div class="notion-form-grid" style="display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: end;">
-                <div class="notion-input-group">
-                    <span style="font-weight: 600;">@seleccionados.Count seleccionado(s)</span>
-                </div>
+                <span style="font-weight: 600; white-space: nowrap;">@seleccionados.Count seleccionado(s)</span>
+
 
                 <!-- Botones en una sola fila -->
-                <div class="notion-input-group bulk-actions">
+                <div style="display: flex; flex-direction: row; flex-wrap: nowrap; gap: 8px;">
                     @if (seleccionados.All(id => albaranes.First(a => a.Id == id).Estado == "Pendiente"))
                     {
-                        <button type="button" class="btn-modern bulk-btn" @onclick='() => MarcarComoEnviado("Entregado")'>
+                        <button type="button" class="btn-modern" style="width: auto !important;" @onclick='() => MarcarComoEnviado("Entregado")'>
                             <i class="bi bi-check-circle"></i> Marcar como Entregado
                         </button>
                     }
 
                     @if (seleccionados.All(id => albaranes.First(a => a.Id == id).Estado == "Entregado"))
                     {
-                        <button class="btn-modern-secondary bulk-btn" @onclick='ConvertirAFacturaMasivo'>
+                        <button class="btn-modern-secondary" style="width: auto !important;" @onclick='ConvertirAFacturaMasivo'>
                             <i class="bi bi-receipt"></i> Convertir a Factura
                         </button>
                     }
 
-                    <button class="btn-modern-secondary bulk-btn" @onclick="ExportarSeleccionados">
+                    <button class="btn-modern-secondary" style="width: auto !important;" @onclick="ExportarSeleccionados">
                         <i class="bi bi-download"></i> Exportar PDFs
                     </button>
                 </div>
@@ -194,6 +197,7 @@
     private string? estadoSeleccionado = null;
     private bool isLoading = true;
     private string errorMessage = string.Empty;
+    private string busquedaCliente = string.Empty;
 
     private readonly List<EstadoTab> estadosDisponibles = new()
     {
@@ -205,9 +209,10 @@
     };
 
     private IEnumerable<AlbaranResponseDto> albaranesFiltrados =>
-        estadoSeleccionado == null
-            ? albaranes
-            : albaranes.Where(a => a.Estado == estadoSeleccionado);
+        albaranes
+            .Where(a => estadoSeleccionado == null || a.Estado == estadoSeleccionado)
+            .Where(a => string.IsNullOrWhiteSpace(busquedaCliente) ||
+                        a.ClienteNombre.Contains(busquedaCliente, StringComparison.OrdinalIgnoreCase));
 
     private bool TodosSeleccionados =>
         albaranesFiltrados.Any() && albaranesFiltrados.All(a => seleccionados.Contains(a.Id));

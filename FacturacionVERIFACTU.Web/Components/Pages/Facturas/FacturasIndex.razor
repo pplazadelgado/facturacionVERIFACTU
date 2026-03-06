@@ -23,7 +23,7 @@
     </div>
 
     @* Tabs de estado *@
-    <div class="notion-toolbar" style="border-bottom: 1px solid #edeceb; margin-bottom: 24px;">
+    <div class="notion-toolbar" style="border-bottom: 1px solid #edeceb; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between;">
         <div class="notion-tabs">
             @foreach (var tab in estadosTabs)
             {
@@ -34,36 +34,40 @@
                 </button>
             }
         </div>
+        <div class="notion-search-wrapper" style="border: 1px solid #edeceb; max-width: 260px; height: 32px; display: flex; align-items: center; padding: 0 8px; border-radius: 6px;">
+            <i class="bi bi-search" style="font-size: 13px; color: #787774;"></i>
+            <input class="notion-search-input"
+                   placeholder="Buscar cliente..."
+                   @bind="busquedaCliente"
+                   @bind:event="oninput"
+                   @bind:after="StateHasChanged"
+                   style="outline: none; box-shadow: none; border: none; background: transparent; height: 100%; padding: 0 6px; font-size: 13px;" />
+        </div>
     </div>
 
+
     @* Barra de acciones masivas *@
-    @if (seleccionados.Any())
+@if (seleccionados.Any())
     {
-        <div class="ui-card" style="padding: 14px; margin-bottom: 24px;">
-            <div class="notion-form-grid" style="display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: end; margin-bottom: 0;">
-                <div class="notion-input-group">
-                    <span style="font-weight: 600;">@seleccionados.Count seleccionado(s)</span>
-                </div>
+        <div class="ui-card" style="padding: 14px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+            <span style="font-weight: 600; white-space: nowrap;">@seleccionados.Count seleccionado(s)</span>
 
-                <div class="notion-input-group bulk-actions" style="justify-content: flex-end; align-items: flex-end;">
-                    @if (PuedenEnviarseAVerifactu())
-                    {
-                        <button type="button" class="btn-modern bulk-btn" @onclick="EnviarMasivoAVerifactu">
-                            <i class="bi bi-send"></i> Enviar a VeriFactu
-                        </button>
-                    }
-
-                    @if (PuedenMarcarseComoPagadas())
-                    {
-                        <button type="button" class="btn-modern bulk-btn" @onclick="MarcarMasivoComoPagadas">
-                            <i class="bi bi-cash"></i> Marcar como Pagadas
-                        </button>
-                    }
-
-                    <button type="button" class="btn-modern-secondary bulk-btn" @onclick="DescargarPDFsMasivo">
-                        <i class="bi bi-file-pdf"></i> Descargar PDFs
+            <div style="display: flex; flex-direction: row; flex-wrap: nowrap; gap: 8px;">
+                @if (PuedenEnviarseAVerifactu())
+                {
+                    <button type="button" class="btn-modern" style="width: auto !important;" @onclick="EnviarMasivoAVerifactu">
+                        <i class="bi bi-send"></i> Enviar a VeriFactu
                     </button>
-                </div>
+                }
+                @if (PuedenMarcarseComoPagadas())
+                {
+                    <button type="button" class="btn-modern" style="width: auto !important;" @onclick="MarcarMasivoComoPagadas">
+                        <i class="bi bi-cash"></i> Marcar como Pagadas
+                    </button>
+                }
+                <button type="button" class="btn-modern-secondary" style="width: auto !important;" @onclick="DescargarPDFsMasivo">
+                    <i class="bi bi-file-pdf"></i> Descargar PDFs
+                </button>
             </div>
         </div>
     }
@@ -212,6 +216,64 @@
     }
 </div>
 
+@* Modal para marcar como pagada *@
+@if (mostrarModalPago)
+{
+    <div class="notion-modal-overlay" @onclick="CerrarModalPago">
+        <div class="notion-modal-productos" style="max-width: 500px;" @onclick:stopPropagation="true">
+            <div class="notion-modal-header">
+                <h3>Marcar @(esAccionMasiva ? $"{facturasPago.Count} facturas" : "factura") como pagada@(esAccionMasiva ? "s" : "")</h3>
+                <button type="button" class="notion-modal-close" @onclick="CerrarModalPago" aria-label="Cerrar">×</button>
+            </div>
+            <div class="notion-modal-body">
+                <div class="notion-form-grid" style="display: grid; grid-template-columns: 1fr; gap: 16px;">
+                    <div class="notion-input-group">
+                        <label class="notion-label">Fecha de pago *</label>
+                        <input type="date" @bind="pagoForm.FechaPago" class="notion-input-modern" />
+                    </div>
+                    @if (!esAccionMasiva)
+                    {
+                        <div class="notion-input-group">
+                            <label class="notion-label">Importe *</label>
+                            <input type="number" @bind="pagoForm.Importe" class="notion-input-modern" step="0.01" readonly style="background: #f8fafc;" />
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-info" style="font-size: 13px; border-radius: 8px; border: none; background-color: #f0f7ff; color: #1b64b0; padding: 12px;">
+                            <i class="bi bi-info-circle"></i> Se marcará el total de cada factura como pagado
+                        </div>
+                    }
+                    <div class="notion-input-group">
+                        <label class="notion-label">Forma de pago *</label>
+                        <select @bind="pagoForm.FormaPago" class="notion-input-modern">
+                            <option value="">Selecciona...</option>
+                            <option value="Efectivo">Efectivo</option>
+                            <option value="Transferencia">Transferencia bancaria</option>
+                            <option value="Tarjeta">Tarjeta</option>
+                            <option value="Pagaré">Pagaré</option>
+                            <option value="Compensación">Compensación</option>
+                            <option value="Otro">Otro</option>
+                        </select>
+                    </div>
+                    <div class="notion-input-group">
+                        <label class="notion-label">Observaciones</label>
+                        <textarea @bind="pagoForm.Observaciones" class="notion-input-modern" rows="3" placeholder="Referencia, número de operación..."></textarea>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 12px; margin-top: 20px; justify-content: flex-end;">
+                    <button type="button" class="btn-modern-secondary" @onclick="CerrarModalPago">
+                        Cancelar
+                    </button>
+                    <button type="button" class="btn-modern" @onclick="ConfirmarPago" disabled="@(string.IsNullOrEmpty(pagoForm.FormaPago))">
+                        <i class="bi bi-check-circle"></i> Confirmar pago@(esAccionMasiva ? "s" : "")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 
 
 @code {
@@ -227,14 +289,21 @@
     private string filtroEstado = string.Empty;
     private string filtroTipoFactura = string.Empty;
 
+    private bool mostrarModalPago;
+    private bool esAccionMasiva;
+    private List<int> facturasPago = new();
+    private PagoFormModel pagoForm = new();
+
     private List<FacturaResponseDto> facturasAMostrar => todasFacturas
          .Where(f =>
         (clienteIdFiltro == 0 || f.ClienteId == clienteIdFiltro) &&
         (string.IsNullOrEmpty(estadoSeleccionado) || f.Estado == estadoSeleccionado) &&
-        (string.IsNullOrEmpty(filtroTipoFactura) || f.TipoFacturaVERIFACTU == filtroTipoFactura))
+        (string.IsNullOrEmpty(filtroTipoFactura) || f.TipoFacturaVERIFACTU == filtroTipoFactura) &&
+         (f.ClienteNombre != null && f.ClienteNombre.Contains(busquedaCliente, StringComparison.OrdinalIgnoreCase)))
     .ToList();
 
     private string? estadoSeleccionado = null;
+    private string busquedaCliente = string.Empty;
 
     private HashSet<int> seleccionados = new();
 
@@ -249,6 +318,14 @@
     private sealed record EstadoTab (string Etiqueta, string? Estado);
 
     private bool TodosSeleccionados => facturasAMostrar.Any() && facturasAMostrar.All(f => seleccionados.Contains(f.Id));
+
+    private class PagoFormModel
+    {
+        public DateTime FechaPago{ get; set; } = DateTime.Today;
+        public decimal Importe{ get; set; }
+        public string FormaPago { get; set; } = string.Empty;
+        public string Observaciones{ get; set; }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -412,54 +489,87 @@
     }
 
     private void MarcarComoPagada(int id)
-{
-    var options = new ConfirmDialogOptions(
-        "Marcar como pagada",
-        "¿Deseas marcar esta factura como pagada?",
-        "Marcar",
-        "Cancelar"
-    );
-
-    ConfirmDialog.Show(options, async () =>
     {
-        try
-        {
-            var factura = todasFacturas.FirstOrDefault(f => f.Id == id);
-            if (factura == null) return;
+        var factura = todasFacturas.FirstOrDefault(f => f.Id == id);
+        if (factura == null) return;
 
-            var dto = new MarcarComoPagadaDto 
-            { 
-                FechaPago = DateTime.Now,
-                Importe = factura.Total,
-                FormaPago = "Transferencia"
-            };
-            
-            // ⭐ CAMBIO: Usar PatchAsync en lugar de PostAsync
-            await ApiService.PatchAsync<MarcarComoPagadaDto, FacturaResponseDto>($"api/facturas/{id}/marcar-pagada", dto);
-            await CargarFacturasAsync();
-            await InvokeAsync(StateHasChanged);
-        }
-        catch (Exception ex)
+        facturasPago = new List<int>{id};
+        esAccionMasiva = false;
+        pagoForm = new PagoFormModel
         {
-            errorMessage = $"Error al marcar como pagada: {ex.Message}";
-            await InvokeAsync(StateHasChanged);
-        }
-    });
-}
+            FechaPago = DateTime.Today,
+            Importe = factura.Total,
+            FormaPago = "Transferencia"
+        };
+        mostrarModalPago = true;
+    }
 
-   private bool PuedenEnviarseAVerifactu()
+    private void CerrarModalPago()
+    {
+        mostrarModalPago = false;
+        facturasPago.Clear();
+        pagoForm = new();
+    }
+
+    private async Task ConfirmarPago()
+    {
+        if (string.IsNullOrEmpty(pagoForm.FormaPago))
         {
-            if (!seleccionados.Any()) return false;
-            var facturasSeleccionadas = facturasAMostrar.Where(f => seleccionados.Contains(f.Id));
-            return facturasSeleccionadas.All(f => !f.EnviadaVERIFACTU && f.EnviadaVERIFACTU == false);
+            errorMessage = "Selecciona una forma de pago";
+            return;
         }
 
-        private bool PuedenMarcarseComoPagadas()
+        errorMessage = string.Empty;
+        var errores = new List<string>();
+
+        foreach(var facturaId in facturasPago)
         {
-            if (!seleccionados.Any()) return false;
-            var facturasSeleccionadas = facturasAMostrar.Where(f => seleccionados.Contains(f.Id));
-            return facturasSeleccionadas.All(f => f.Estado == "Emitida");
+            try
+            {
+                var factura = todasFacturas.FirstOrDefault(f => f.Id == facturaId);
+                if (factura == null) continue;
+
+                var dto = new MarcarComoPagadaDto
+                    {
+                        FechaPago = pagoForm.FechaPago,
+                        Importe = factura.Total,
+                        FormaPago = pagoForm.FormaPago,
+                        Observaciones = pagoForm.Observaciones
+                    };
+
+                await ApiService.PatchAsync<MarcarComoPagadaDto, FacturaResponseDto>($"api/facturas/{facturaId}/marcar-pagada", dto);
+
+            }
+            catch (Exception ex)
+            {
+                errores.Add($"Factura {facturaId}: {ex.Message}");
+            }
         }
+
+        if (errores.Any())
+        {
+            errorMessage = $"Algunas facturas no se marcaron: {string.Join(", ", errores)}";
+        }
+
+        CerrarModalPago();
+        if (esAccionMasiva) seleccionados.Clear();
+        await CargarFacturasAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private bool PuedenEnviarseAVerifactu()
+    {
+        if (!seleccionados.Any()) return false;
+        var facturasSeleccionadas = facturasAMostrar.Where(f => seleccionados.Contains(f.Id));
+        return facturasSeleccionadas.All(f => !f.EnviadaVERIFACTU && f.EnviadaVERIFACTU == false);
+    }
+
+    private bool PuedenMarcarseComoPagadas()
+    {
+        if (!seleccionados.Any()) return false;
+        var facturasSeleccionadas = facturasAMostrar.Where(f => seleccionados.Contains(f.Id));
+        return facturasSeleccionadas.All(f => f.Estado == "Emitida");
+    }
 
 
 
@@ -502,46 +612,14 @@
 
     private void MarcarMasivoComoPagadas()
     {
-        var options = new ConfirmDialogOptions(
-            $"Marcar {seleccionados.Count} fatura(s) como pagadas",
-            "¿Deseas marcar las facturas como seleccionadas como pagadas?",
-            "Marcar",
-            "Cancelar"
-        );
-
-        ConfirmDialog.Show(options, async () =>
+        facturasPago = seleccionados.ToList();
+        esAccionMasiva = true;
+        pagoForm=new PagoFormModel
         {
-            errorMessage = string.Empty;
-            var errores = new List<string>();
-
-            foreach (var facturaId in seleccionados.ToList())
-            {
-                try
-                {
-                    var dto = new MarcarComoPagadaDto
-                        {
-                            FechaPago = DateTime.Now,
-                            Importe = todasFacturas.First(f => f.Id == facturaId).Total,
-                            FormaPago = "Transferencia"
-                        };
-                    // Dentro del foreach, cambia:
-                    await ApiService.PatchAsync<MarcarComoPagadaDto, FacturaResponseDto>($"api/facturas/{facturaId}/marcar-pagada", dto);
-                }
-                catch (Exception ex)
-                {
-                    errores.Add($"Factura {facturaId}: {ex.Message}");
-                }
-            }
-
-            if (errores.Any())
-            {
-                errorMessage = $"Algunas facturas no se marcaron: {string.Join(",", errores)}";
-            }
-
-            seleccionados.Clear();
-            await CargarFacturasAsync();
-            await InvokeAsync(StateHasChanged);
-        });
+            FechaPago = DateTime.Today,
+            FormaPago = "Transferencia"
+        };
+        mostrarModalPago = true;
     }
 
     private async Task DescargarPDFsMasivo()

@@ -21,7 +21,7 @@
     </div>
 
     <!-- Tabs de estado -->
-    <div class="notion-toolbar" style="border-bottom: 1px solid #edeceb; margin-bottom: 24px;">
+    <div class="notion-toolbar" style="border-bottom: 1px solid #edecbd; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between;">
         <div class="notion-tabs">
             @foreach (var estado in estadosDisponibles)
             {
@@ -32,39 +32,46 @@
                 </button>
             }
         </div>
+        <div class="notion-search-wrapper" style="border: 1px solid #edeceb; max-width: 260px; height: 32px; display: flex; align-items: center; padding: 0 8px; border-radius: 6px;">
+            <i class="bi bi-search" style="font-size: 13px; color: #787774;"></i>
+            <input class="notion-search-input"
+                   placeholder="Buscar cliente..."
+                   @bind="busquedaCliente"
+                   @bind:event="oninput"
+                   @bind:after="() => presupuestos = FiltrarPresupuestos(estadoSeleccionado)"
+                   style="outline: none; box-shadow: none; border: none; background: transparent; height: 100%; padding: 0 6px; font-size: 13px;" />
+        </div>
     </div>
+    
 
     @* Barra de exportacion masiva *@
     @if (seleccionados.Any())
     {
-        <div class="ui-card" style="padding: 14px; margin-bottom: 24px;">
-            <div class="notion-form-grid" style="display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: end; margin-bottom: 12px;">
-                <div class="notion-input-group">
-                    <span style="font-weight: 600;">@seleccionados.Count seleccionado(s)</span>
-                </div>
+        <div class="ui-card" style="padding: 14px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+            <span style="font-weight: 600; white-space: nowrap;">@seleccionados.Count seleccionado(s)</span>
 
-                <div class="notion-input-group bulk-actions" style="justify-content:flex-end; align-items:flex-end;">
+            <div style="display: flex; flex-direction: row; flex-wrap: nowrap; gap: 8px;">
                     @if (seleccionados.All(Id => presupuestos.First(p => p.Id == Id).Estado == "Borrador"))
                     {
-                        <button type="button" class="btn-modern bulk-btn" @onclick='() => CambioEstadoMasivo("Enviado", "Borrador")'>
+                    <button type="button" class="btn-modern" style="width: auto !important;" @onclick='() => CambioEstadoMasivo("Enviado", "Borrador")'>
                             <i class="bi bi-check-circle"></i> Marcar como Enviado
                         </button>
                     }
 
                     @if (seleccionados.All(Id => presupuestos.First(p => p.Id == Id).Estado == "Enviado"))
                     {
-                        <button type="button" class="btn-modern bulk-btn" @onclick='() => CambioEstadoMasivo("Aceptado", "Enviado")'>
+                    <button type="button" class="btn-modern" style="width: auto !important;" @onclick='() => CambioEstadoMasivo("Aceptado", "Enviado")'>
                             <i class="bi bi-check-circle"></i> Marcar como Aceptado
                         </button>
 
-                        <button type="button" class="btn-modern bulk-btn" @onclick='() => CambioEstadoMasivo("Rechazado", "Enviado")'>
+                    <button type="button" class="btn-modern" style="width: auto !important;" @onclick='() => CambioEstadoMasivo("Rechazado", "Enviado")'>
                             <i class="bi bi-x-circle"></i> Marcar como Rechazado
                         </button>
                     }
 
                     @if (seleccionados.All(Id => presupuestos.First(p => p.Id == Id).Estado == "Rechazado"))
                     {
-                        <button type="button" class="btn-modern bulk-btn" @onclick='() => CambioEstadoMasivo("Borrador", "Rechazado")'>
+                    <button type="button" class="btn-modern" style="width: auto !important;" @onclick='() => CambioEstadoMasivo("Borrador", "Rechazado")'>
                             <i class="bi bi-arrow-counterclockwise"></i> Volver a borrador
                         </button>
                     }
@@ -82,28 +89,22 @@
                             </InputSelect>
                         </div>
 
-                        <button type="button" class="btn-modern bulk-btn" @onclick="ExportarFacturaAgrupadaAsync">
+                    <button type="button" class="btn-modern" style="width: auto !important;" @onclick="ExportarFacturaAgrupadaAsync">
                             <i class="bi bi-receipt"></i> Facturar
                         </button>
                     }
 
-                    <button type="button" class="btn-modern-secondary bulk-btn" @onclick="DescargarPdfMasivo">
+                <button type="button" class="btn-modern-secondary" style="width: auto !important;" @onclick="DescargarPdfMasivo">
                         <i class="bi bi-download"></i> Descargar Presupuestos
                     </button>
 
-                    <button type="button" class="btn-modern-secondary bulk-btn" @onclick="EliminarSeleccionadosAsync">
+                <button type="button" class="btn-modern-secondary" style="width: auto !important;" @onclick="EliminarSeleccionadosAsync">
                         <i class="bi bi-trash3"></i> Eliminar
                     </button>
                 </div>
             </div>
 
-            @if (!string.IsNullOrEmpty(conversionMessage))
-            {
-                <div class="alert alert-info" style="margin-top: 12px; font-size: 13px; border-radius: 12px; border: 1px solid rgba(79,124,255,.18); background-color: rgba(79,124,255,.10); color: #2b5cff; padding: 12px;">
-                    <i class="bi bi-info-circle"></i> @conversionMessage
-                </div>
-            }
-        </div>
+
     }
 
     @if (isLoading)
@@ -266,6 +267,7 @@
     private bool isConverting;
     private string errorMessage = string.Empty;
     private string conversionMessage = string.Empty;
+    private string busquedaCliente = string.Empty;
 
     private ConversionFacturaAgrupadaModel conversionAgrupada = new();
 
@@ -360,7 +362,10 @@
 
     private IEnumerable<PresupuestoResponseDto> AplicarFiltrosBase()
     {
-        return presupuestosTodos;
+        var resultado = presupuestosTodos.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(busquedaCliente))
+            resultado = resultado.Where(p => p.ClienteNombre.Contains(busquedaCliente, StringComparison.OrdinalIgnoreCase));
+            return resultado;
     }
 
     private bool TodosSeleccionados => presupuestos.Any()
