@@ -126,18 +126,26 @@
         isLoading = true;
         errorMessage = string.Empty;
 
-        var response = await ApiService.GetAsync<List<TipoImpuestoListadoDto>>("api/tiposimpuesto");
-        if (response == null)
+        try
         {
-            errorMessage = "No se pudieron cargar los tipos de impuesto.";
+            var response = await ApiService.GetAsync<List<TipoImpuestoListadoDto>>("api/tiposimpuesto") ?? new List<TipoImpuestoListadoDto>(); ;
+        }
+        catch(HttpRequestException ex)
+        {
+            errorMessage = ex.Message;
             tiposImpuesto = new List<TipoImpuestoListadoDto>();
         }
-        else
+        catch(Exception ex)
         {
-            tiposImpuesto = response;
+            errorMessage = $"Error inesperado: {ex.Message}";
+            tiposImpuesto = new List<TipoImpuestoListadoDto>();
+        }
+        finally
+        {
+            isLoading = false;
         }
 
-        isLoading = false;
+
     }
 
     private void NuevoTipo() => NavManager.NavigateTo("/tipos-impuesto/nuevo");
@@ -149,21 +157,27 @@
         var confirm = await JSRuntime.InvokeAsync<bool>("confirm", $"¿{(tipo.Activo ? "Desactivar" : "Activar")} el tipo {tipo.Nombre}?");
         if (!confirm) return;
 
-        var request = new ActualizarTipoImpuestoDto
+        try
         {
-            Nombre = tipo.Nombre,
-            PorcentajeIVA = tipo.PorcentajeIva,
-            PorcentajeRecargo = tipo.PorcentajeRecargo,
-            Activo = !tipo.Activo
-        };
+            var request = new ActualizarTipoImpuestoDto
+            {
+                Nombre = tipo.Nombre,
+                PorcentajeIVA = tipo.PorcentajeIva,
+                PorcentajeRecargo = tipo.PorcentajeRecargo,
+                Activo = !tipo.Activo
+            };
 
-        var result = await ApiService.PutAsync<ActualizarTipoImpuestoDto, TipoImpuestoDto>($"api/tiposimpuesto/{tipo.Id}", request);
-        if (result == null)
-        {
-            errorMessage = "No se pudo actualizar el estado del tipo.";
-            return;
+            await ApiService.PutAsync<ActualizarTipoImpuestoDto, TipoImpuestoDto>($"api/tiposimpuesto/{tipo.Id}", request);
+
+            await CargarTiposAsync();
         }
-
-        await CargarTiposAsync();
+        catch(HttpRequestException ex)
+        {
+            errorMessage = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error al actualizar: {ex.Message}";
+        }
     }
 }

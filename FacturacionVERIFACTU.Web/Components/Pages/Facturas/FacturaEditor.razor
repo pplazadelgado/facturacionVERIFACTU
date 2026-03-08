@@ -616,7 +616,7 @@
 
             factura.ClienteId = response.ClienteId;
             factura.SerieId = response.SerieId;
-            factura.FechaEmision = response.FechaEmision.Date;
+            factura.FechaEmision = ConvertirALocal( response.FechaEmision.Date) ?? DateTime.UtcNow;
             factura.Observaciones = response.Observaciones;
             factura.TipoFacturaVERIFACTU = response.TipoFacturaVERIFACTU ?? "F1";
             factura.PorcentajeRetencion = response.PorcentajeRetencion;
@@ -676,7 +676,7 @@
                 {
                     ClienteId = factura.ClienteId,
                     SerieId = factura.SerieId,
-                    FechaEmision = factura.FechaEmision,
+                    FechaEmision = ConvertirAUtc( factura.FechaEmision) ?? DateTime.UtcNow,
                     Observaciones = factura.Observaciones,
                     TipoFacturaVERIFACTU = factura.TipoFacturaVERIFACTU,
                     PorcentajeRetencion = factura.PorcentajeRetencion,
@@ -705,7 +705,7 @@
                 var request = new FacturaUpdateDto
                 {
                     ClienteId = factura.ClienteId,
-                    FechaEmision = factura.FechaEmision,
+                    FechaEmision = ConvertirAUtc( factura.FechaEmision) ?? DateTime.UtcNow,
                     Observaciones = factura.Observaciones,
                     PorcentajeRetencion = factura.PorcentajeRetencion,
                     Lineas = factura.Lineas.Select(l => new LineaFacturaDto
@@ -1062,7 +1062,7 @@
         {
             var dto = new MarcarComoPagadaDto
                 {
-                    FechaPago = pagoForm.FechaPago,
+                    FechaPago = ConvertirAUtc(pagoForm.FechaPago) ?? DateTime.UtcNow,
                     Importe = pagoForm.Importe,
                     FormaPago = pagoForm.FormaPago,
                     Observaciones = pagoForm.Observaciones
@@ -1140,6 +1140,45 @@
     private void Cancelar()
     {
         NavManager.NavigateTo("/facturas");
+    }
+
+    private static DateTime? ConvertirAUtc(DateTime? value)
+{
+    if (!value.HasValue)
+    {
+        return null;
+    }
+
+    // Para fechas sin hora (00:00:00), mantener la fecha exacta sin conversión de zona horaria
+    if (value.Value.TimeOfDay == TimeSpan.Zero)
+    {
+        return DateTime.SpecifyKind(value.Value, DateTimeKind.Utc);
+    }
+
+    // Para fechas con hora, convertir normalmente
+    var local = DateTime.SpecifyKind(value.Value, DateTimeKind.Local);
+    return local.ToUniversalTime();
+}
+
+    private static DateTime? ConvertirALocal(DateTime? value)
+    {
+        if (!value.HasValue)
+        {
+            return null;
+        }
+
+        DateTime fecha;
+        if (value.Value.Kind == DateTimeKind.Utc)
+        {
+            fecha = value.Value.ToLocalTime();
+        }
+        else
+        {
+            fecha = value.Value;
+        }
+
+        // Devolver solo la parte de fecha (sin hora)
+        return fecha.Date;
     }
 
     private class PagoFormModel

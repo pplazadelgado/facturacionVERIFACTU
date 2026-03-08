@@ -525,8 +525,8 @@
 
             albaran.ClienteId = response.ClienteId;
             albaran.SerieId = response.SerieId;
-            albaran.FechaEmision = response.FechaEmision.Date;
-            albaran.FechaEntrega = response.FechaEntrega?.Date;
+            albaran.FechaEmision = ConvertirALocal( response.FechaEmision.Date) ?? DateTime.Today;
+            albaran.FechaEntrega = ConvertirALocal( response.FechaEntrega?.Date);
             albaran.DireccionEntrega = response.DireccionEntrega;
             albaran.Observaciones = response.Observaciones;
 
@@ -541,6 +541,7 @@
                 ProductoId = l.ProductoId
             }).ToList();
 
+            clienteSeleccionado = clientes.FirstOrDefault(c => c.ClienteId == response.ClienteId);
             ActualizarClienteRecargo();
         }
         catch (Exception ex)
@@ -584,8 +585,8 @@
                 {
                     ClienteId = albaran.ClienteId,
                     SerieId = albaran.SerieId,
-                    FechaEmision = albaran.FechaEmision,
-                    FechaEntrega = albaran.FechaEntrega,
+                    FechaEmision = ConvertirAUtc( albaran.FechaEmision) ?? DateTime.UtcNow,
+                    FechaEntrega = ConvertirAUtc( albaran.FechaEntrega),
                     DireccionEntrega = albaran.DireccionEntrega,
                     Observaciones = albaran.Observaciones,
                     Lineas = albaran.Lineas.Select(l => new LineaAlbaranDto
@@ -614,8 +615,8 @@
                 var request = new AlbaranUpdateDto
                 {
                     ClienteId = albaran.ClienteId,
-                    FechaEmision = albaran.FechaEmision,
-                    FechaEntrega = albaran.FechaEntrega,
+                    FechaEmision = ConvertirAUtc( albaran.FechaEmision) ?? DateTime.UtcNow,
+                    FechaEntrega = ConvertirAUtc( albaran.FechaEntrega),
                     DireccionEntrega = albaran.DireccionEntrega,
                     Observaciones = albaran.Observaciones,
                     Lineas = albaran.Lineas.Select(l => new LineaAlbaranDto
@@ -929,7 +930,7 @@
         try
         {
             var response = await Http.GetAsync($"api/albaranes/{Id}/pdf");
-        
+
             if (!response.IsSuccessStatusCode)
             {
                 errorMessage = "Error al descargar el PDF";
@@ -938,7 +939,7 @@
 
             var fileBytes = await response.Content.ReadAsByteArrayAsync();
             var fileName = $"Albaran_{Id}.pdf";
-        
+
             // Convertir a base64 y descargar con JS
             var base64 = Convert.ToBase64String(fileBytes);
             await JS.InvokeVoidAsync("downloadFile", fileName, base64);
@@ -952,6 +953,33 @@
     private void Cancelar()
     {
         NavManager.NavigateTo("/albaranes");
+    }
+
+    private static DateTime? ConvertirAUtc(DateTime? value)
+    {
+        if (!value.HasValue) return null;
+
+        if (value.Value.TimeOfDay == TimeSpan.Zero) return DateTime.SpecifyKind(value.Value, DateTimeKind.Utc);
+
+        var local = DateTime.SpecifyKind(value.Value, DateTimeKind.Local);
+        return local.ToUniversalTime();
+    }
+
+    private static DateTime? ConvertirALocal(DateTime? value)
+    {
+        if(!value.HasValue) return null;
+
+        DateTime fecha;
+        if(value.Value.Kind == DateTimeKind.Utc)
+        {
+            fecha = value.Value.ToLocalTime();
+        }
+        else
+        {
+            fecha = value.Value;
+        }
+
+        return fecha.Date;
     }
 
     private sealed class AlbaranFormModel

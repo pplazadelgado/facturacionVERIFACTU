@@ -223,6 +223,13 @@
                                         </button>
                                     }
 
+                                    @if (presupuesto.Estado == "Aceptado" || presupuesto.Estado == "Rechazado")
+                                    {
+                                        <button class="notion-action-btn delete" title="Volver a Borrador"
+                                                @onclick='() => CambiarEstadoIndividual(presupuesto.Id,"Borrador")'>
+                                                <i class="bi bi-arrow-counterclockwise"></i>
+                                        </button>
+                                    }
                                     <button class="notion-action-btn"
                                             title="Descargar PDF"
                                             @onclick="() => DescargarPDF(presupuesto.Id)">
@@ -287,22 +294,31 @@
         errorMessage = string.Empty;
         conversionMessage = string.Empty;
 
-        var response = await ApiService.GetAsync<List<PresupuestoResponseDto>>("api/Presupuestos");
-        if (response == null)
+        try
         {
-            errorMessage = "No se pudieron cargar los presupuestos";
-            presupuestos = new List<PresupuestoResponseDto>();
-            presupuestosTodos = new List<PresupuestoResponseDto>();
-            seleccionados.Clear();
-        }
-        else
-        {
+            var response = await ApiService.GetAsync<List<PresupuestoResponseDto>>("api/Presupuestos");
             presupuestosTodos = response;
             presupuestos = FiltrarPresupuestos(estado);
             seleccionados.RemoveWhere(id => presupuestosTodos.All(p => p.Id != id));
         }
-
-        isLoading = false;
+        catch (HttpRequestException ex)
+        {
+            errorMessage = ex.Message;
+            presupuestos = new List<PresupuestoResponseDto>();
+            presupuestosTodos = new List<PresupuestoResponseDto>();
+            seleccionados.Clear();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+            presupuestos = new List<PresupuestoResponseDto>();
+            presupuestosTodos = new List<PresupuestoResponseDto>();
+            seleccionados.Clear();
+        }
+        finally
+        {
+            isLoading = false;
+        }
     }
 
     private async Task CargarSeriesFacturasAsync()
@@ -438,7 +454,7 @@
         {
             PresupuestosIds = seleccionadosList.Select(p => p.Id).ToList(),
             SerieId = conversionAgrupada.SerieId,
-            FechaEmision = conversionAgrupada.FechaEmision,
+            FechaEmision =  conversionAgrupada.FechaEmision,
             Observaciones = conversionAgrupada.Observaciones,
             PorcentajeRetencion = conversionAgrupada.PorcentajeRetencion
         };
@@ -469,7 +485,7 @@
     {
         var options = new ConfirmDialogOptions(
             "¿Eliminar presupuesto?",
-            $"El presupuesto {presupuesto.Id} se borrara permanentemente.",
+            $"El presupuesto {presupuesto.NumeroPresupuesto} se borrara permanentemente.",
             "Eliminar",
             "Cancelar"
         );
@@ -581,7 +597,7 @@
 
             foreach (var id in ids)
             {
-                var result = await ApiService.DeleteAsyncDetailed($"api/presuestos/{id}");
+                var result = await ApiService.DeleteAsyncDetailed($"api/presupuestos/{id}");
                 if(!result.Success){
                     var msg = string.IsNullOrWhiteSpace(result.ErrorMessage)
                         ? $"No se pudo eliminar el presupuesto {id}"
@@ -635,12 +651,12 @@
 
                     if (result == null)
                     {
-                        throw new InvalidOperationException($"Error al cambiar el estado del presupuesto {presupuesto.Id}");
+                        throw new InvalidOperationException($"Error al cambiar el estado del presupuesto {presupuesto.SerieId}-{presupuesto.Numero}");
                     }
                 }
                 catch (Exception ex)
                 {
-                    throw new InvalidOperationException($"Error en presupuesto {presupuesto.Id}: {ex.Message}");
+                    throw new InvalidOperationException($"Error en presupuesto {presupuesto.SerieId}-{presupuesto.Numero}: {ex.Message}");
                 }
             }
             await CargarPresupuestosAsync(estadoSeleccionado);

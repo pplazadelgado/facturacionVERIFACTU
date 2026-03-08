@@ -282,6 +282,40 @@
        
     </EditForm>
 
+    @if (Id == 0)
+    {
+        <div class="convertir-factura estado-panel" style="margin-top: 24px;">
+           
+
+            <div class="notion-form-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 16px;">
+               
+                <button type="button" class="btn-modern" style="min-width: 140px;" disabled="@(isSaving || !EsEditable)" @onclick="GuardarAsync">
+                    @if (isSaving)
+                    {
+                        <span class="spinner-border spinner-border-sm" role="status"></span>
+                    }
+                    else
+                    {
+                        <span>Guardar</span>
+                    }
+                </button>
+
+                <button type="button" class="btn-modern-secondary" style="min-width: 140px;" @onclick="Cancelar">
+                    Cancelar
+                </button>
+
+            </div>
+
+            @if (isCambiandoEstado)
+            {
+                <div style="margin-top: 12px; color: #6c757d; font-size: 13px;">
+                    <span class="spinner-border spinner-border-sm" role="status"></span>
+                    Cambiando estado...
+                </div>
+            }
+        </div>
+    }
+
     @if (Id > 0)
     {
         <div class="convertir-factura estado-panel" style="margin-top: 24px;">
@@ -289,7 +323,7 @@
             <p>Estado actual: <strong>@estadoPresupuesto</strong></p>
 
             <div class="notion-form-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 16px;">
-                <button type="submit" class="btn-modern" style="min-width: 140px;" disabled="@(isSaving || !EsEditable)">
+                <button type="button" class="btn-modern" style="min-width: 140px;" disabled="@(isSaving || !EsEditable)" @onclick="GuardarAsync">
                     @if (isSaving)
                     {
                         <span class="spinner-border spinner-border-sm" role="status"></span>
@@ -339,7 +373,7 @@
                     Cancelar
                 </button>
 
-                @if (estadoPresupuesto == "Rechazado")
+                @if (estadoPresupuesto == "Rechazado" || estadoPresupuesto == "Aceptado")
                 {
                     <button class="btn-modern-secondary"
                             @onclick='() => CambiarEstadoAsync("Borrador")'
@@ -613,7 +647,7 @@
 
     private List<SerieDto> SeriesAlbaranes = new();
 
-    
+
     private string busquedaProducto = string.Empty;
     private bool mostrarModalClientes;
     private string busquedaCliente = string.Empty;
@@ -668,6 +702,10 @@
                 presupuesto.Lineas = new List<LineaPresupuestoViewModel>();
             }
         }
+        catch(HttpRequestException ex)
+        {
+            errorMessage = $"Error al cargar datos: {ex.Message}";
+        }
         catch (Exception ex)
         {
             errorMessage = $"Error inicializando componente: {ex.Message}";
@@ -677,77 +715,128 @@
 
     private async Task CargarClientesAsync()
     {
-        var response = await ApiService.GetAsync<PaginatedResponseDto<ClienteDto>>("api/clientes?page=1&pageSize=500");
-        clientes = response?.Items ?? new List<ClienteDto>();
+        try
+        {
+            var response = await ApiService.GetAsync<PaginatedResponseDto<ClienteDto>>("api/clientes?page=1&pageSize=500");
+            clientes = response?.Items ?? new List<ClienteDto>();
+        }
+        catch (Exception)
+        {
+            clientes = new List<ClienteDto>();
+        }
     }
+
 
     private async Task CargarTiposImpuestoAsync()
     {
-        tiposImpuesto = await ApiService.GetAsync<List<TipoImpuestoListadoDto>>("api/tiposimpuesto") ?? new List<TipoImpuestoListadoDto>();
+        try
+        {
+            tiposImpuesto = await ApiService.GetAsync<List<TipoImpuestoListadoDto>>("api/tiposimpuesto") ?? new List<TipoImpuestoListadoDto>();
+        }
+        catch
+        {
+            tiposImpuesto = new List<TipoImpuestoListadoDto>();    
+        }
+
     }
 
     private async Task CargarSeriesPresupuestosAsync()
     {
-        var response = await ApiService.GetAsync<PaginatedResponseDto<SerieDto>>(
-            "api/series?page=1&pageSize=100&tipoDocumento=PRESUPUESTO&soloActivas=true");
-        SeriesPresupuestos = response?.Items ?? new List<SerieDto>();
+        try
+        {
+            var response = await ApiService.GetAsync<PaginatedResponseDto<SerieDto>>(
+           "api/series?page=1&pageSize=100&tipoDocumento=PRESUPUESTO&soloActivas=true");
+            SeriesPresupuestos = response?.Items ?? new List<SerieDto>();
+        }
+        catch (Exception)
+        {
+            SeriesPresupuestos = new List<SerieDto>();
+        }
+
     }
 
     private async Task CargarSeriesFacturasAsync()
     {
-        var response = await ApiService.GetAsync<PaginatedResponseDto<SerieDto>>(
-            "api/series?page=1&pageSize=100&tipoDocumento=FACTURA&soloActivas=true");
-        SeriesFacturas = response?.Items ?? new List<SerieDto>();
+        try
+        {
+            var response = await ApiService.GetAsync<PaginatedResponseDto<SerieDto>>(
+                "api/series?page=1&pageSize=100&tipoDocumento=FACTURA&soloActivas=true");
+            SeriesFacturas = response?.Items ?? new List<SerieDto>();
+        }
+        catch (Exception)
+        {
+            SeriesFacturas = new List<SerieDto>();
+        }
+
     }
 
     private async Task CargarSeriesAlbaranesAsync()
     {
-        var response = await ApiService.GetAsync<PaginatedResponseDto<SerieDto>>(
-            "api/series?page=1&pageSize=100&tipoDocumento=ALBARAN&soloActivas=true");
-        SeriesAlbaranes = response?.Items ?? new List<SerieDto>();
+        try
+        {
+            var response = await ApiService.GetAsync<PaginatedResponseDto<SerieDto>>(
+                "api/series?page=1&pageSize=100&tipoDocumento=ALBARAN&soloActivas=true");
+            SeriesAlbaranes = response?.Items ?? new List<SerieDto>();
+        }
+        catch (Exception)
+        {
+            SeriesAlbaranes = new List<SerieDto>();
+        }
     }
 
     private async Task CargarPresupuestoAsync()
     {
-        var response = await ApiService.GetAsync<PresupuestoResponseDto>($"api/presupuestos/{Id}");
-        if (response == null)
+        try
         {
-            errorMessage = "No se pudo cargar el presupuesto seleccionado.";
-            return;
+            var response = await ApiService.GetAsync<PresupuestoResponseDto>($"api/presupuestos/{Id}");
+            if (response == null)
+            {
+                errorMessage = "No se pudo cargar el presupuesto seleccionado.";
+                return;
+            }
+
+            numeroPresupuesto = response.NumeroPresupuesto;
+            estadoPresupuesto = response.Estado;
+
+            presupuesto = new PresupuestoFormModel
+            {
+                ClienteId = response.ClienteId,
+                SerieId = response.SerieId,
+                FechaEmision = ConvertirALocal(response.FechaEmision) ?? DateTime.Today,
+                FechaValidez = ConvertirALocal(response.FechaValidez),
+                Observaciones = response.Observaciones,
+                PorcentajeRetencion = response.PorcentajeRetencion,
+                Lineas = response.Lineas
+                    .OrderBy(l => l.Orden)
+                    .Select(l => new LineaPresupuestoViewModel
+                    {
+                        Id = l.Id,
+                        Descripcion = l.Descripcion,
+                        Cantidad = l.Cantidad,
+                        PrecioUnitario = l.PrecioUnitario,
+                        PorcentajeDescuento = l.PorcentajeDescuento,
+                        IVA = l.IVA,
+                        RecargoEquivalencia = l.RecargoEquivalencia,
+                        TipoImpuestoId = l.TipoImpuestoId,
+                        ArticuloId = l.ArticuloId,
+                        ArticuloCodigo = l.ArticuloCodigo
+                    })
+                    .ToList()
+            };
+
+            editContext = new EditContext(presupuesto);
+            AplicarConfiguracionCliente();
+            clienteSeleccionado = clientes.FirstOrDefault(c => c.ClienteId == response.ClienteId);
+        }
+        catch (HttpRequestException ex)
+        {
+            errorMessage = $"Error al cargar el presupuesto: {ex.Message}";
+        }
+        catch(Exception ex)
+        {
+            errorMessage = $"Error inesperado: {ex.Message}";
         }
 
-        numeroPresupuesto = response.NumeroPresupuesto;
-        estadoPresupuesto = response.Estado;
-
-        presupuesto = new PresupuestoFormModel
-        {
-            ClienteId = response.ClienteId,
-            SerieId = response.SerieId,
-            FechaEmision = ConvertirALocal(response.FechaEmision) ?? DateTime.Today,
-            FechaValidez = ConvertirALocal(response.FechaValidez),
-            Observaciones = response.Observaciones,
-            PorcentajeRetencion = response.PorcentajeRetencion,
-            Lineas = response.Lineas
-                .OrderBy(l => l.Orden)
-                .Select(l => new LineaPresupuestoViewModel
-                {
-                    Id = l.Id,
-                    Descripcion = l.Descripcion,
-                    Cantidad = l.Cantidad,
-                    PrecioUnitario = l.PrecioUnitario,
-                    PorcentajeDescuento = l.PorcentajeDescuento,
-                    IVA = l.IVA,
-                    RecargoEquivalencia = l.RecargoEquivalencia,
-                    TipoImpuestoId = l.TipoImpuestoId,
-                    ArticuloId = l.ArticuloId,
-                    ArticuloCodigo = l.ArticuloCodigo
-                })
-                .ToList()
-        };
-
-        editContext = new EditContext(presupuesto);
-        AplicarConfiguracionCliente();
-        clienteSeleccionado = clientes.FirstOrDefault(c => c.ClienteId == response.ClienteId);
     }
 
     private Task OnClienteChanged(ChangeEventArgs args)
@@ -861,16 +950,11 @@
                     Lineas = lineas
                 };
 
-                var result = await ApiService.PostAsync<PresupuestoCreateDto, PresupuestoResponseDto>("api/presupuestos", request);
-                if (result == null)
-                {
-                    errorMessage = "No se pudo crear el presupuesto.";
-                    isSaving = false;
-                    return;
-                }
+                await ApiService.PostAsync<PresupuestoCreateDto, PresupuestoResponseDto>("api/presupuestos", request);
             }
             else
             {
+
                 var request = new PresupuestoUpdateDto
                 {
                     ClienteId = presupuesto.ClienteId,
@@ -881,20 +965,21 @@
                     Lineas = lineas
                 };
 
-                var result = await ApiService.PutAsync<PresupuestoUpdateDto, PresupuestoResponseDto>($"api/presupuestos/{Id}", request);
-                if (result == null)
-                {
-                    errorMessage = "No se pudo actualizar el presupuesto.";
-                    isSaving = false;
-                    return;
-                }
+                await ApiService.PutAsync<PresupuestoUpdateDto, PresupuestoResponseDto>($"api/presupuestos/{Id}", request);
             }
 
             NavManager.NavigateTo("/presupuestos");
         }
+        catch(HttpRequestException ex)
+        {
+            errorMessage = ex.Message;
+        }
         catch (Exception ex)
         {
             errorMessage = $"Error al guardar: {ex.Message}";
+        }
+        finally
+        {
             isSaving = false;
         }
     }
@@ -927,15 +1012,13 @@
             };
 
             var result = await ApiService.PostAsync<ConvertirPresupuestoAFacturaDto, FacturaResponseDto>($"api/facturas/desde-presupuesto/{Id}", request);
-            if (result == null)
-            {
-                convertirMensaje = "No se pudo convertir el presupuesto a factura.";
-            }
-            else
-            {
-                convertirMensaje = $"Factura generada correctamente: {result.Numero ?? "sin número"}.";
-                NavManager.NavigateTo($"/facturas/editar/{result.Id}");
-            }
+
+            convertirMensaje = $"Factura generada correctamente: {result.Numero ?? "sin número"}.";
+            NavManager.NavigateTo($"/facturas/editar/{result.Id}");
+        }
+        catch (HttpRequestException ex)
+        {
+            convertirMensaje = ex.Message;
         }
         catch (Exception ex)
         {
@@ -972,16 +1055,13 @@
             var result = await ApiService.PostAsync<ConvertirPresupuestoAAlbaranDto, AlbaranResponseDto>(
                 $"api/albaranes/desde-presupuesto/{Id}", request);
 
-            if (result == null)
-            {
-                convertirAlbaranMensaje = "No se pudo convertir el presupuesto a albarán.";
-            }
-            else
-            {
-                var numeroText = Convert.ToString(result.Numero) ?? "sin numero";
-                convertirAlbaranMensaje = $"Albarán generado correctamente: {numeroText}.";
-                NavManager.NavigateTo($"/albaranes/editar/{result.Id}");
-            }
+            var numeroText = Convert.ToString(result.Numero) ?? "sin numero";
+            convertirAlbaranMensaje = $"Albarán generado correctamente: {numeroText}.";
+            NavManager.NavigateTo($"/albaranes/editar/{result.Id}");
+        }
+        catch(HttpRequestException ex)
+        {
+            convertirAlbaranMensaje = ex.Message;
         }
         catch (Exception ex)
         {
@@ -1032,16 +1112,13 @@
                 var result = await ApiService.PatchAsync<CambiarEstadoPresupuestoDto, PresupuestoResponseDto>(
                     $"api/presupuestos/{Id}/estado", request);
 
-                if (result == null)
-                {
-                    errorMessage = "No se pudo cambiar el estado del presupuesto.";
-                }
-                else
-                {
-                    estadoPresupuesto = result.Estado;
-                    motivoCambioEstado = string.Empty;
-                    StateHasChanged();
-                }
+                estadoPresupuesto = result.Estado;
+                motivoCambioEstado = string.Empty;
+                StateHasChanged();               
+            }
+            catch (HttpRequestException ex)
+            {
+                errorMessage = ex.Message;
             }
             catch (Exception ex)
             {
@@ -1379,6 +1456,13 @@
             return null;
         }
 
+        // Para fechas sin hora (00:00:00), mantener la fecha exacta sin conversión de zona horaria
+        if (value.Value.TimeOfDay == TimeSpan.Zero)
+        {
+            return DateTime.SpecifyKind(value.Value, DateTimeKind.Utc);
+        }
+
+        // Para fechas con hora, convertir normalmente
         var local = DateTime.SpecifyKind(value.Value, DateTimeKind.Local);
         return local.ToUniversalTime();
     }
@@ -1390,12 +1474,18 @@
             return null;
         }
 
+        DateTime fecha;
         if (value.Value.Kind == DateTimeKind.Utc)
         {
-            return value.Value.ToLocalTime();
+            fecha = value.Value.ToLocalTime();
+        }
+        else
+        {
+            fecha = value.Value;
         }
 
-        return value;
+        // Devolver solo la parte de fecha (sin hora)
+        return fecha.Date;
     }
 
     private sealed class PresupuestoFormModel

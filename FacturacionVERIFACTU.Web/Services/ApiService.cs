@@ -40,11 +40,16 @@ namespace FacturacionVERIFACTU.Web.Services
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    _logger.LogWarning("GET {Endpoint} falló: {Status}", endpoint, response.StatusCode);
-                    return default;
+                    var errorMessage = await ExtractErrorMessageAsync(response);
+                    _logger.LogWarning("GET {Endpoint} falló: {Status} - {Error}", endpoint, response.StatusCode,errorMessage);
+                    throw new HttpRequestException(errorMessage ?? $"Error {response.StatusCode}");
                 }
 
                 return await response.Content.ReadFromJsonAsync<T>();
+            }
+            catch (HttpRequestException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -62,11 +67,16 @@ namespace FacturacionVERIFACTU.Web.Services
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    _logger.LogWarning("POST {Endpoint} falló: {Status}", endpoint, response.StatusCode);
-                    return default;
+                    var errorMessage = await ExtractErrorMessageAsync(response);
+                    _logger.LogWarning("POST {Endpoint} falló: {Status} - {Error}", endpoint, response.StatusCode, errorMessage);
+                    throw new HttpRequestException(errorMessage ?? $"Error {response.StatusCode}");
                 }
 
                 return await response.Content.ReadFromJsonAsync<TResponse>();
+            }
+            catch (HttpRequestException)
+            {
+                throw;
             }
             catch(Exception ex)
             {
@@ -84,11 +94,16 @@ namespace FacturacionVERIFACTU.Web.Services
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    _logger.LogWarning("PUT {Endpoint} falló: {Status}", endpoint, response.StatusCode);
-                    return default;
+                    var errorMessage = await ExtractErrorMessageAsync(response);
+                    _logger.LogWarning("PUT {Endpoint} falló: {Status} - {Error}", endpoint, response.StatusCode,errorMessage);
+                    throw new HttpRequestException(errorMessage ?? $"Error {response.StatusCode}");
                 }
 
                 return await response.Content.ReadFromJsonAsync<TResponse>();
+            }
+            catch (HttpRequestException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -110,10 +125,15 @@ namespace FacturacionVERIFACTU.Web.Services
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    _logger.LogWarning("PATC {Endpoint} fallo: {Status}", endpoint, response.StatusCode);
-                    return default;
+                    var errorMessage = await ExtractErrorMessageAsync(response);
+                    _logger.LogWarning("PATC {Endpoint} fallo: {Status} - {Error}", endpoint, response.StatusCode, errorMessage);
+                    throw new HttpRequestException(errorMessage ?? $"Error {response.StatusCode}");
                 }
                 return await response.Content.ReadFromJsonAsync<TResponse>();
+            }
+            catch (HttpRequestException)
+            {
+                throw;
             }
             catch(Exception ex)
             {

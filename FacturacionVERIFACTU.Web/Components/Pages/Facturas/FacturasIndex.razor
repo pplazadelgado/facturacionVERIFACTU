@@ -430,8 +430,23 @@
     {
         try
         {
-            // Implementar descarga de PDF
-            Console.WriteLine($"Descargar PDF de factura {id}");
+            var response = await Http.GetAsync($"api/facturas/{id}/pdf");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                throw new HttpRequestException(errorContent);
+            }
+
+            var fileBytes = await response.Content.ReadAsByteArrayAsync();
+            var fileName = $"Factura_{id}.pdf";
+
+            var base64 = Convert.ToBase64String(fileBytes);
+            await JS.InvokeVoidAsync("downloadFile", fileName, base64);
+        }
+        catch(HttpRequestException ex)
+        {
+            errorMessage = ex.Message;
         }
         catch (Exception ex)
         {
@@ -624,50 +639,53 @@
 
     private async Task DescargarPDFsMasivo()
     {
-
-
         var options = new ConfirmDialogOptions(
-            $"Descargar {seleccionados.Count} fatura(s) en PDF",
+            $"Descargar {seleccionados.Count} factura(s) en PDF",
             "¿Deseas descargar las facturas en PDF?",
             "Descargar",
             "Cancelar"
         );
 
         ConfirmDialog.Show(options, async () =>
+        {
+            errorMessage = string.Empty;
+            var errores = new List<string>();
+
+            foreach (var facturaId in seleccionados.ToList())
             {
-                errorMessage = string.Empty;
-                var errores = new List<string>();
-                foreach (var facturaId in seleccionados.ToList())
+                try
                 {
-                    try
+                    var response = await Http.GetAsync($"api/facturas/{facturaId}/pdf");
+
+                    if (!response.IsSuccessStatusCode)
                     {
-                        var response = await Http.GetAsync($"api/facturas/{facturaId}/pdf");
-
-                        if (!response.IsSuccessStatusCode) return;
-
-                        var fileBytes = await response.Content.ReadAsByteArrayAsync();
-                        var fileName = $"Factura_{facturaId}.pdf";
-
-                        var base64 = Convert.ToBase64String(fileBytes);
-                        await JS.InvokeVoidAsync("downloadFile", fileName, base64);
+                        var errorContent = await response.Content.ReadAsStringAsync();
+                        errores.Add($"Factura {facturaId}: {errorContent}");
+                        continue;
                     }
-                    catch (Exception ex)
-                    {
-                        errores.Add($"Factura {facturaId}: {ex.Message}");
-                    }
+
+                    var fileBytes = await response.Content.ReadAsByteArrayAsync();
+                    var fileName = $"Factura_{facturaId}.pdf";
+
+                    var base64 = Convert.ToBase64String(fileBytes);
+                    await JS.InvokeVoidAsync("downloadFile", fileName, base64);
                 }
-
-                if (errores.Any())
+                catch (Exception ex)
                 {
-                    errorMessage = $"Algunas facturas no se marcaron: {string.Join(",", errores)}";
+                    errores.Add($"Factura {facturaId}: {ex.Message}");
                 }
+            }
 
-                seleccionados.Clear();
-                await CargarFacturasAsync();
-                await InvokeAsync(StateHasChanged);
-            });
+            if (errores.Any())
+            {
+                errorMessage = $"Algunas facturas no se descargaron: {string.Join(", ", errores)}";
+            }
 
+            seleccionados.Clear();
+            await InvokeAsync(StateHasChanged);
+        });
     }
+ 
 
    
     

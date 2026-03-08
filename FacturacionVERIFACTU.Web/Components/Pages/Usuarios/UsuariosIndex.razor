@@ -162,18 +162,25 @@
         isLoading = true;
         errorMessage = string.Empty;
 
-        var response = await ApiService.GetAsync<List<UsuarioResponseDto>>("api/usuarios");
-        if (response is null)
+        try
         {
-            errorMessage = "No se pudieron cargar los usuarios.";
-            usuarios = new();
+            usuarios = await ApiService.GetAsync<List<UsuarioResponseDto>>("api/usuarios")
+                   ?? new List<UsuarioResponseDto>();
         }
-        else
+        catch(HttpRequestException ex)
         {
-            usuarios = response;
+            errorMessage = ex.Message;
+            usuarios = new List<UsuarioResponseDto>();
         }
-
-        isLoading = false;
+        catch(Exception ex)
+        {
+            errorMessage = $"Error inesperado: {ex.Message}";
+            usuarios = new List<UsuarioResponseDto>();
+        }
+        finally
+        {
+            isLoading = false;
+        }
     }
 
     private void SetFiltroActivo(bool? v) => filtroActivo = v;
@@ -194,17 +201,24 @@
 
         ConfirmDialog.Show(options, async () =>
         {
-            var request = new CambiarEstadoUsuarioDto { Activo = nuevo };
-
-            // endpoint típico (si en tu API el endpoint difiere, dime cuál y lo ajusto)
-            var result = await ApiService.PatchAsync<CambiarEstadoUsuarioDto, UsuarioResponseDto>(
+            try
+            {
+                var request = new CambiarEstadoUsuarioDto { Activo = nuevo };
+                await ApiService.PatchAsync<CambiarEstadoUsuarioDto, UsuarioResponseDto>(
                 $"api/usuarios/{u.Id}/estado", request);
-
-            if (result is null)
-                throw new InvalidOperationException("No se pudo cambiar el estado del usuario.");
-
-            await CargarAsync();
-            await InvokeAsync(StateHasChanged);
+                await CargarAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+            catch(HttpRequestException ex)
+            {
+                errorMessage = ex.Message;
+                await InvokeAsync(StateHasChanged);
+            }
+            catch (Exception ex)
+            {
+                errorMessage = $"Error inesperado: {ex.Message}";
+                await InvokeAsync(StateHasChanged);
+            }           
         });
     }
 }

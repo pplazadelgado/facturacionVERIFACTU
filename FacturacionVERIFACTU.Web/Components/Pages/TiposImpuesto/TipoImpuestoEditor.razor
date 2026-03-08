@@ -118,21 +118,29 @@
             return;
         }
 
-        var response = await ApiService.GetAsync<TipoImpuestoListadoDto>($"api/tiposimpuesto/{Id}");
-        if (response == null)
+        try
         {
-            errorMessage = "No se pudo cargar el tipo de impuesto.";
-            return;
+            var response = await ApiService.GetAsync<TipoImpuestoListadoDto>($"api/tiposimpuesto/{Id}");
+
+
+            tipoImpuesto = new TipoImpuestoDto
+            {
+                TipoImpuestoId = response.Id,
+                Nombre = response.Nombre,
+                PorcentajeIVA = response.PorcentajeIva,
+                PorcentajeRecargoEquivalencia = response.PorcentajeRecargo,
+                Activo = response.Activo
+            };
+        }
+        catch(HttpRequestException ex)
+        {
+            errorMessage = $"Error al cargar el tipo de impuesto: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error inesperado:{ex.Message}";
         }
 
-        tipoImpuesto = new TipoImpuestoDto
-        {
-            TipoImpuestoId = response.Id,
-            Nombre = response.Nombre,
-            PorcentajeIVA = response.PorcentajeIva,
-            PorcentajeRecargoEquivalencia = response.PorcentajeRecargo,
-            Activo = response.Activo
-        };
     }
 
     private async Task GuardarAsync()
@@ -140,44 +148,45 @@
         isSaving = true;
         errorMessage = string.Empty;
 
-        if (Id == 0)
+        try
         {
-            var request = new CrearTipoImpuestoDto
+            if (Id == 0)
             {
-                Nombre = tipoImpuesto.Nombre,
-                PorcentajeIVA = tipoImpuesto.PorcentajeIVA,
-                PorcentajeRecargoEquivalencia = tipoImpuesto.PorcentajeRecargoEquivalencia,
-                Activo = tipoImpuesto.Activo
-            };
+                var request = new CrearTipoImpuestoDto
+                {
+                    Nombre = tipoImpuesto.Nombre,
+                    PorcentajeIVA = tipoImpuesto.PorcentajeIVA,
+                    PorcentajeRecargoEquivalencia = tipoImpuesto.PorcentajeRecargoEquivalencia,
+                    Activo = tipoImpuesto.Activo
+                };
 
-            var result = await ApiService.PostAsync<CrearTipoImpuestoDto, TipoImpuestoDto>("api/tiposimpuesto", request);
-            if (result == null)
-            {
-                errorMessage = "No se pudo crear el tipo de impuesto.";
-                isSaving = false;
-                return;
+                await ApiService.PostAsync<CrearTipoImpuestoDto, TipoImpuestoDto>("api/tiposimpuesto", request);
             }
+            else
+            {
+                var request = new ActualizarTipoImpuestoDto
+                {
+                    Nombre = tipoImpuesto.Nombre,
+                    PorcentajeIVA = tipoImpuesto.PorcentajeIVA,
+                    PorcentajeRecargo = tipoImpuesto.PorcentajeRecargoEquivalencia,
+                    Activo = tipoImpuesto.Activo
+                };
+
+                await ApiService.PutAsync<ActualizarTipoImpuestoDto, TipoImpuestoDto>($"api/tiposimpuesto/{Id}", request);
+            }
+
+            NavManager.NavigateTo("/tipos-impuesto");
         }
-        else
+        catch(HttpRequestException ex)
         {
-            var request = new ActualizarTipoImpuestoDto
-            {
-                Nombre = tipoImpuesto.Nombre,
-                PorcentajeIVA = tipoImpuesto.PorcentajeIVA,
-                PorcentajeRecargo = tipoImpuesto.PorcentajeRecargoEquivalencia,
-                Activo = tipoImpuesto.Activo
-            };
-
-            var result = await ApiService.PutAsync<ActualizarTipoImpuestoDto, TipoImpuestoDto>($"api/tiposimpuesto/{Id}", request);
-            if (result == null)
-            {
-                errorMessage = "No se pudo actualizar el tipo de impuesto.";
-                isSaving = false;
-                return;
-            }
+            errorMessage = ex.Message;
+            isSaving = false;
         }
-
-        NavManager.NavigateTo("/tipos-impuesto");
+        catch(Exception ex)
+        {
+            errorMessage = $"Error inesperado: {ex.Message}";
+            isSaving = false;
+        }
     }
 
     private void Cancelar() => NavManager.NavigateTo("/tipos-impuesto");

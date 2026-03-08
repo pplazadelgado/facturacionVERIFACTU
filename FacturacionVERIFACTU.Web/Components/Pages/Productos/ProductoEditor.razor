@@ -128,24 +128,38 @@
             return;
         }
 
-        var response = await ApiService.GetAsync<ProductoDto>($"api/productos/{Id}");
-        if (response == null)
+        try
         {
-            errorMessage = "No se pudo cargar el producto seleccionado.";
-            return;
+            producto = await ApiService.GetAsync<ProductoDto>($"api/productos/{Id}");
+
+            if(producto.TipoImpuestoId is null)
+            {
+                avisoTipoImpuesto = "Este producto no tiene tipo de impuesto asignado. Seleccionia uno antes de guardar.";
+            }
+        }
+        catch(HttpRequestException ex)
+        {
+            errorMessage = $"Error al cargar el producto: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error inesperado: {ex.Message}";
         }
 
-        producto = response;
-        if (producto.TipoImpuestoId is null)
-        {
-            avisoTipoImpuesto = "Este producto no tiene tipo de impuesto asignado. Selecciona uno antes de guardar.";
-        }
     }
 
     private async Task CargarTiposImpuestoAsync()
     {
-        var response = await ApiService.GetAsync<PaginatedResponseDto<TipoImpuestoDto>>("api/tiposimpuesto?page=1&pageSize=200");
-        tiposImpuesto = await ApiService.GetAsync<List<TipoImpuestoListadoDto>>("api/tiposimpuesto") ?? new List<TipoImpuestoListadoDto>();
+        try
+        {
+            tiposImpuesto = await ApiService.GetAsync<List<TipoImpuestoListadoDto>>("api/tiposimpuesto") ?? new List<TipoImpuestoListadoDto>();
+        }
+        catch(Exception ex)
+        {
+            errorMessage = $"Error al cargar tipos de impuesto: {ex.Message}";
+            tiposImpuesto = new List<TipoImpuestoListadoDto>();
+        }
+
     }
 
     private void SeleccionarTipoImpuestoPorDefecto()
@@ -177,47 +191,50 @@
             return;
         }
 
-        if (Id == 0)
+        try
         {
-            var request = new CrearProductoDto
+            if (Id == 0)
             {
-                TipoImpuestoId = producto.TipoImpuestoId,
-                Codigo = producto.Codigo,
-                Descripcion = producto.Descripcion,
-                PrecioUnitario = producto.PrecioUnitario,
-                Unidad = producto.Unidad,
-                Activo = producto.Activo
-            };
+                var request = new CrearProductoDto
+                {
+                    TipoImpuestoId = producto.TipoImpuestoId,
+                    Codigo = producto.Codigo,
+                    Descripcion = producto.Descripcion,
+                    PrecioUnitario = producto.PrecioUnitario,
+                    Unidad = producto.Unidad,
+                    Activo = producto.Activo
+                };
 
-            var result = await ApiService.PostAsync<CrearProductoDto, ProductoDto>("api/productos", request);
-            if (result == null)
-            {
-                errorMessage = "No se pudo crear el producto.";
-                isSaving = false;
-                return;
+                await ApiService.PostAsync<CrearProductoDto, ProductoDto>("api/productos", request);
             }
+            else
+            {
+                var request = new ActualizarProductoDto
+                {
+                    TipoImpuestoId = producto.TipoImpuestoId,
+                    Descripcion = producto.Descripcion,
+                    PrecioUnitario = producto.PrecioUnitario,
+                    Unidad = producto.Unidad,
+                    Activo = producto.Activo
+                };
+
+                await ApiService.PutAsync<ActualizarProductoDto, ProductoDto>($"api/productos/{Id}", request);
+            }
+            NavManager.NavigateTo("/productos");
         }
-        else
+        catch(HttpRequestException ex)
         {
-            var request = new ActualizarProductoDto
-            {
-                TipoImpuestoId = producto.TipoImpuestoId,
-                Descripcion = producto.Descripcion,
-                PrecioUnitario = producto.PrecioUnitario,
-                Unidad = producto.Unidad,
-                Activo = producto.Activo
-            };
-
-            var result = await ApiService.PutAsync<ActualizarProductoDto, ProductoDto>($"api/productos/{Id}", request);
-            if (result == null)
-            {
-                errorMessage = "No se pudo actualizar el producto.";
-                isSaving = false;
-                return;
-            }
+            errorMessage = ex.Message;
+            isSaving = false;
+        }
+        catch(Exception ex)
+        {
+            errorMessage = $"Error inesperado: {ex.Message}";
+            isSaving = false;
         }
 
-        NavManager.NavigateTo("/productos");
+
+        
     }
 
     private void Cancelar() => NavManager.NavigateTo("/productos");

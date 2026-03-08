@@ -307,24 +307,43 @@
     {
         if (!seleccionados.Any()) return;
 
+        errorMessage = string.Empty;
+        var errores = new List<string>();
+
         try
         {
             foreach (var id in seleccionados)
             {
-                var response = await Http.GetAsync($"api/albaranes/{id}/pdf");
+                try
+                {
+                    var response = await Http.GetAsync($"api/albaranes/{id}/pdf");
 
-                if (!response.IsSuccessStatusCode) return;
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        var errorContent = await response.Content.ReadAsStringAsync();
+                        errores.Add($"Albaran {id}: {errorContent}");
+                        continue;
+                    }
 
-                var fileBytes = await response.Content.ReadAsByteArrayAsync();
-                var fileName = $"Albaran_{id}.pdf";
+                    var fileBytes = await response.Content.ReadAsByteArrayAsync();
+                    var fileName = $"Albaran_{id}.pdf";
 
-                var base64 = Convert.ToBase64String(fileBytes);
-                await JS.InvokeVoidAsync("downloadFile", fileName, base64);
+                    var base64 = Convert.ToBase64String(fileBytes);
+                    await JS.InvokeVoidAsync("downloadFile", fileName, base64);
+                }
+                catch(Exception ex)
+                {
+                    errores.Add($"Albaran {id}: {ex.Message}");
+                }
+            }
+            if (errores.Any())
+            {
+                errorMessage = $"Algunos albaranes no se descargaron: {string.Join(", ", errores)}";
             }
         }
         catch(Exception ex)
         {
-            Console.WriteLine($"Error downloading PDF: {ex.Message}");
+            errorMessage = $"Error al exportar: {ex.Message}";
         }
     }
 
@@ -336,7 +355,8 @@
 
             if (!response.IsSuccessStatusCode)
             {
-                return;
+                var errorContent = await response.Content.ReadAsStringAsync();
+                throw new HttpRequestException(errorContent);
             }
 
             var fileBytes = await response.Content.ReadAsByteArrayAsync();
@@ -344,6 +364,10 @@
 
             var base64 = Convert.ToBase64String(fileBytes);
             await JS.InvokeVoidAsync("downloadFile", fileName, base64);
+        }
+        catch(HttpRequestException ex)
+        {
+            errorMessage = ex.Message;
         }
         catch (Exception ex)
         {
@@ -421,12 +445,12 @@
 
                  if (result == null)
                  {
-                     throw new InvalidOperationException($"Error al cambiar estado del albarán {albaran.Id}");
+                     throw new InvalidOperationException($"Error al cambiar estado del albarán {albaran.SerieCodigo}-{albaran.Numero}");
                  }
              }
              catch (Exception ex)
              {
-                 throw new InvalidOperationException($"Error en albarán {albaran.Id}: {ex.Message}");
+                 throw new InvalidOperationException($"Error en albarán {albaran.SerieCodigo}-{albaran.Numero}: {ex.Message}");
              }
          }
 

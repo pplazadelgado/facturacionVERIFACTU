@@ -231,35 +231,44 @@
         errorMessage = string.Empty;
         successMessage = string.Empty;
 
-        var response = await ApiService.GetAsync<TenantResponseDto>("api/tenants/mi-empresa");
-        if (response == null)
+        try
         {
-            errorMessage = "No se pudieron cargar los datos de la empresa.";
-            isLoading = false;
-            return;
+            var response = await ApiService.GetAsync<TenantResponseDto>("api/tenants/mi-empresa");
+
+
+            model = new TenantUpdateDto
+            {
+                RazonSocial = response.RazonSocial,
+                NIF = response.NIF,
+                Direccion = response.Direccion,
+                CodigoPostal = response.CodigoPostal,
+                Poblacion = response.Poblacion,
+                Provincia = response.Provincia,
+                Telefono = response.Telefono,
+                Email = response.Email,
+                RegistroMercantil = response.RegistroMercantil,
+                Tomo = response.Tomo,
+                Libro = response.Libro,
+                Folio = response.Folio,
+                Seccion = response.Seccion,
+                Hoja = response.Hoja,
+                Inscripcion = response.Inscripcion
+            };
+
+            tenantTieneLogo = response.TieneLogo;
         }
-
-        model = new TenantUpdateDto
+        catch(HttpRequestException ex)
         {
-            RazonSocial = response.RazonSocial,
-            NIF = response.NIF,
-            Direccion = response.Direccion,
-            CodigoPostal = response.CodigoPostal,
-            Poblacion = response.Poblacion,
-            Provincia = response.Provincia,
-            Telefono = response.Telefono,
-            Email = response.Email,
-            RegistroMercantil = response.RegistroMercantil,
-            Tomo = response.Tomo,
-            Libro = response.Libro,
-            Folio = response.Folio,
-            Seccion = response.Seccion,
-            Hoja = response.Hoja,
-            Inscripcion = response.Inscripcion
-        };
-
-        tenantTieneLogo = response.TieneLogo;
-        isLoading = false;
+            errorMessage = $"Error al cargar los datos: {ex.Message}";
+        }
+        catch(Exception ex)
+        {
+            errorMessage = $"Error inesperado: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
     }
 
     private async Task GuardarAsync()
@@ -268,16 +277,22 @@
         errorMessage = string.Empty;
         successMessage = string.Empty;
 
-        var response = await ApiService.PutAsync<TenantUpdateDto, ApiMessageDto>("api/tenants/mi-empresa", model);
-        if (response == null)
+        try
         {
-            errorMessage = "No se pudieron guardar los cambios.";
+            await ApiService.PutAsync<TenantUpdateDto, ApiMessageDto>("api/tenants/mi-empresa", model);
+            successMessage = "Datos actualizados correctamente";
+        }
+        catch (HttpRequestException ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
             isSaving = false;
-            return;
         }
 
-        successMessage = response.Mensaje;
-        isSaving = false;
+
+
     }
 
     private void SeleccionarLogo(InputFileChangeEventArgs args)
@@ -309,14 +324,17 @@
             var response = await HttpClient.PostAsync("api/tenants/mi-empresa/logo", content);
             if (!response.IsSuccessStatusCode)
             {
-                errorMessage = "No se pudo subir el logo.";
-                isUploadingLogo = false;
-                return;
+                var errorContent = await response.Content.ReadAsStringAsync();
+                throw new HttpRequestException(errorContent);
             }
 
             tenantTieneLogo = true;
             logoSeleccionado = null;
             successMessage = "Logo actualizado correctamente.";
+        }
+        catch(HttpRequestException ex)
+        {
+            errorMessage = ex.Message;
         }
         catch (Exception ex)
         {
@@ -334,17 +352,32 @@
         errorMessage = string.Empty;
         successMessage = string.Empty;
 
-        var response = await HttpClient.DeleteAsync("api/tenants/mi_empresa/logo");
-        if (!response.IsSuccessStatusCode)
+        try
         {
-            errorMessage = "No se pudo eliminar el logo.";
+            var response = await HttpClient.DeleteAsync("api/tenants/mi-empresa/logo");
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                throw new HttpRequestException(errorContent);
+            }
+
+            tenantTieneLogo = false;
+            successMessage = "Logo eliminado correctamente.";
+        }
+        catch(HttpRequestException ex)
+        {
+            errorMessage = ex.Message;
+        }
+        catch(Exception ex)
+        {
+            errorMessage = $"Error inesperado: {ex.Message}";
+        }
+        finally
+        {
             isUploadingLogo = false;
-            return;
         }
 
-        tenantTieneLogo = false;
-        successMessage = "Logo eliminado correctamente.";
-        isUploadingLogo = false;
+        
     }
 
     private sealed class ApiMessageDto

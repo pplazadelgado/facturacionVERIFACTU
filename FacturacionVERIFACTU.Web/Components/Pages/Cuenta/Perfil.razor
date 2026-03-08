@@ -83,17 +83,22 @@
         errorMessage = string.Empty;
         successMessage = string.Empty;
 
-        var response = await ApiService.PostAsync<ChangePasswordDto, ApiMessageDto>("api/usuarios/cambiar-password", model);
-        if (response == null)
+        try
         {
-            errorMessage = "No se pudo actualizar la contraseña.";
+            await ApiService.PostAsync<ChangePasswordDto, ApiMessageDto>("api/usuarios/cambiar-password", model);
+            successMessage = "Contraseña actualizada correctamente";
+            model = new ChangePasswordDto();
+        }
+        catch (HttpRequestException ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
             isSaving = false;
-            return;
         }
 
-        successMessage = response.Mensaje;
-        model = new ChangePasswordDto();
-        isSaving = false;
+        
     }
 
     private sealed class ApiMessageDto

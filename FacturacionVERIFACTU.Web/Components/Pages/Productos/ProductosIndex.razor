@@ -142,23 +142,29 @@
         isLoading = true;
         errorMessage = string.Empty;
 
-        var endpoint = string.IsNullOrWhiteSpace(search)
-            ? "api/productos"
-            : $"api/productos?search={Uri.EscapeDataString(search)}";
-
-        var response = await ApiService.GetAsync<PaginatedResponseDto<ProductoDto>>(endpoint);
-
-        if (response == null)
+        try
         {
-            errorMessage = "No se pudieron cargar los productos.";
+            var endpoint = string.IsNullOrWhiteSpace(search)
+               ? "api/productos"
+               : $"api/productos?search={Uri.EscapeDataString(search)}";
+
+            var response = await ApiService.GetAsync<PaginatedResponseDto<ProductoDto>>(endpoint);
+            productos = response?.Items ?? new List<ProductoDto>();
+        }
+        catch(HttpRequestException ex)
+        {
+            errorMessage = ex.Message;
             productos = new List<ProductoDto>();
         }
-        else
+        catch(Exception ex)
         {
-            productos = response.Items ?? new List<ProductoDto>();
+            errorMessage = $"Error inesperado: {ex.Message}";
+            productos = new List<ProductoDto>();
         }
-
-        isLoading = false;
+        finally
+        {
+            isLoading = false;
+        }
     }
 
     private async Task Buscar()

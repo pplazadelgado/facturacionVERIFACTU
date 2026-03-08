@@ -130,17 +130,24 @@
             return;
         }
 
-        var response = await ApiService.GetAsync<UsuarioResponseDto>($"api/usuarios/{Id}");
-        if (response == null)
+        try
         {
-            errorMessage = "No se pudo cargar el usuario seleccionado.";
-            return;
-        }
+            var response = await ApiService.GetAsync<UsuarioResponseDto>($"api/usuarios/{Id}");
 
-        model.NombreCompleto = response.NombreCompleto;
-        model.Role = response.Role;
-        model.Activo = response.Activo;
-        email = response.Email;
+
+            model.NombreCompleto = response.NombreCompleto;
+            model.Role = response.Role;
+            model.Activo = response.Activo;
+            email = response.Email;
+        }
+        catch (HttpRequestException ex)
+        {
+            errorMessage = $"Error al cargar el usuario: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error inesperado: {ex.Message}";
+        }
     }
 
     private async Task GuardarAsync()
@@ -148,32 +155,36 @@
         isSaving = true;
         errorMessage = string.Empty;
 
-        if (Id == 0)
+        try
         {
-            createModel.NombreCompleto = model.NombreCompleto;
-            createModel.Role = model.Role;
-            createModel.Activo = model.Activo;
-
-            var result = await ApiService.PostAsync<CreateUsuarioDto, UsuarioResponseDto>("api/usuarios", createModel);
-            if (result == null)
+            if (Id == 0)
             {
-                errorMessage = "No se pudo crear el usuario.";
-                isSaving = false;
-                return;
+                createModel.NombreCompleto = model.NombreCompleto;
+                createModel.Role = model.Role;
+                createModel.Activo = model.Activo;
+
+                await ApiService.PostAsync<CreateUsuarioDto, UsuarioResponseDto>("api/usuarios", createModel);
             }
+            else
+            {
+                await ApiService.PutAsync<UpdateUsuarioDto, UsuarioResponseDto>($"api/usuarios/{Id}", model);
+            }
+
+            NavManager.NavigateTo("/usuarios");
         }
-        else
+        catch (HttpRequestException ex)
         {
-            var result = await ApiService.PutAsync<UpdateUsuarioDto, UsuarioResponseDto>($"api/usuarios/{Id}", model);
-            if (result == null)
-            {
-                errorMessage = "No se pudo actualizar el usuario.";
-                isSaving = false;
-                return;
-            }
+            errorMessage = ex.Message;
+        }
+        catch(Exception ex)
+        {
+            errorMessage = $"Error inesperado {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
         }
 
-        NavManager.NavigateTo("/usuarios");
     }
 
     private void Cancelar() => NavManager.NavigateTo("/usuarios");

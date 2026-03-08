@@ -213,7 +213,7 @@ namespace FacturacionVERIFACTU.API.Controllers
         ///<summary>
         /// Elimina un albaran
         /// </summary>
-        [HttpDelete("id")]
+        [HttpDelete("{id}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -252,7 +252,7 @@ namespace FacturacionVERIFACTU.API.Controllers
         ///<sumary>
         ///Convierte un presupuesto en albaran 
         /// </sumary>
-        [HttpPost("desde-prespuesto/{presupuestoId}")]
+        [HttpPost("desde-presupuesto/{presupuestoId}")]
         [ProducesResponseType(typeof(AlbaranResponseDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]

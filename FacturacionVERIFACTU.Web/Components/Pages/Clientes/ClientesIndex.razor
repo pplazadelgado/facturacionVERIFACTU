@@ -142,22 +142,24 @@
         isLoading = true;
         errorMessage = string.Empty;
 
-        var endpoint = string.IsNullOrWhiteSpace(search)
-            ? "api/clientes"
-            : $"api/clientes?search={Uri.EscapeDataString(search)}";
-
-        var response = await ApiService.GetAsync<PaginatedResponseDto<ClienteDto>>(endpoint);
-        if (response == null)
+        try
         {
-            errorMessage = "No se pudieron cargar los clientes.";
+            var endpoint = string.IsNullOrWhiteSpace(search)
+           ? "api/clientes"
+           : $"api/clientes?search={Uri.EscapeDataString(search)}";
+            var response = await ApiService.GetAsync<PaginatedResponseDto<ClienteDto>>(endpoint);
+            clientes = response.Items ?? new List<ClienteDto>();
+        }
+        catch (HttpRequestException ex)
+        {
+            errorMessage = ex.Message;
             clientes = new List<ClienteDto>();
         }
-        else
+        catch(Exception ex)
         {
-            clientes = response.Items;
+            errorMessage = $"Error inesperado: {ex.Message}";
+            clientes = new List<ClienteDto>();
         }
-
-        isLoading = false;
     }
 
     private async Task Buscar()

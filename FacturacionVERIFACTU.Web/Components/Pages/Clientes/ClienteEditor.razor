@@ -168,14 +168,21 @@
             return;
         }
 
-        var response = await ApiService.GetAsync<ClienteDto>($"api/clientes/{Id}");
-        if (response == null)
+
+        try
         {
-            errorMessage = "No se pudo cargar el cliente seleccionado.";
-            return;
+            cliente = await ApiService.GetAsync<ClienteDto>($"api/clientes/{Id}");
+        }
+        catch(HttpRequestException ex)
+        {
+            errorMessage = $"Error al cargar el cliente: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error inesperado: {ex.Message}";
         }
 
-        cliente = response;
+
     }
 
     private async Task GuardarAsync()
@@ -183,63 +190,64 @@
         isSaving = true;
         errorMessage = string.Empty;
 
-        if (Id == 0)
+        try
         {
-            var request = new CrearClienteDto
+            if (Id == 0)
             {
-                NIF = cliente.NIF,
-                Nombre = cliente.Nombre,
-                Email = cliente.Email,
-                Telefono = cliente.Telefono,
-                Direccion = cliente.Direccion,
-                CodigoPostal = cliente.CodigoPostal,
-                Poblacion = cliente.Poblacion,
-                Provincia = cliente.Provincia,
-                Pais = cliente.Pais,
-                Activo= cliente.Activo,
-                RegimenRecargoEquivalencia = cliente.RegimenRecargoEquivalencia,
-                PorcentajeRetencionDefecto = cliente.PorcentajeRetencionDefecto,
-                TipoCliente=cliente.TipoCliente,
-                NotasFiscales = cliente.NotasFiscales
-            };
-
-            var result = await ApiService.PostAsync<CrearClienteDto, ClienteDto>("api/clientes", request);
-            if (result == null)
-            {
-                errorMessage = "No se pudo crear el cliente.";
-                isSaving = false;
-                return;
+                var request = new CrearClienteDto
+                {
+                    NIF = cliente.NIF,
+                    Nombre = cliente.Nombre,
+                    Email = cliente.Email,
+                    Telefono = cliente.Telefono,
+                    Direccion = cliente.Direccion,
+                    CodigoPostal = cliente.CodigoPostal,
+                    Poblacion = cliente.Poblacion,
+                    Provincia = cliente.Provincia,
+                    Pais = cliente.Pais,
+                    Activo = cliente.Activo,
+                    RegimenRecargoEquivalencia = cliente.RegimenRecargoEquivalencia,
+                    PorcentajeRetencionDefecto = cliente.PorcentajeRetencionDefecto,
+                    TipoCliente = cliente.TipoCliente,
+                    NotasFiscales = cliente.NotasFiscales
+                };
+                await ApiService.PostAsync<CrearClienteDto, ClienteDto>("api/clientes", request);
             }
+            else
+            {
+                var request = new ActualizarClienteDto
+                {
+                    Nombre = cliente.Nombre,
+                    Email = cliente.Email,
+                    Telefono = cliente.Telefono,
+                    Direccion = cliente.Direccion,
+                    CodigoPostal = cliente.CodigoPostal,
+                    Poblacion = cliente.Poblacion,
+                    Provincia = cliente.Provincia,
+                    Pais = cliente.Pais,
+                    Activo = cliente.Activo,
+                    RegimenRecargoEquivalencia = cliente.RegimenRecargoEquivalencia,
+                    PorcentajeRetencionDefecto = cliente.PorcentajeRetencionDefecto,
+                    TipoCliente = cliente.TipoCliente,
+                    NotasFiscales = cliente.NotasFiscales
+                };
+
+                await ApiService.PutAsync<ActualizarClienteDto, ClienteDto>($"api/clientes/{Id}", request);
+            }
+
+            NavManager.NavigateTo("/clientes");
         }
-        else
+        catch (HttpRequestException ex)
         {
-            var request = new ActualizarClienteDto
-            {
-                Nombre = cliente.Nombre,
-                Email = cliente.Email,
-                Telefono = cliente.Telefono,
-                Direccion = cliente.Direccion,
-                CodigoPostal = cliente.CodigoPostal,
-                Poblacion = cliente.Poblacion,
-                Provincia = cliente.Provincia,
-                Pais = cliente.Pais,
-                Activo = cliente.Activo,
-                RegimenRecargoEquivalencia = cliente.RegimenRecargoEquivalencia,
-                PorcentajeRetencionDefecto = cliente.PorcentajeRetencionDefecto,
-                TipoCliente = cliente.TipoCliente,
-                NotasFiscales = cliente.NotasFiscales
-            };
-
-            var result = await ApiService.PutAsync<ActualizarClienteDto, ClienteDto>($"api/clientes/{Id}", request);
-            if (result == null)
-            {
-                errorMessage = "No se pudo actualizar el cliente.";
-                isSaving = false;
-                return;
-            }
+            errorMessage = ex.Message;
+            isSaving = false;
+        }
+        catch(Exception ex)
+        {
+            errorMessage = $"Error inesperado: {ex.Message}";
+            isSaving = false;
         }
 
-        NavManager.NavigateTo("/clientes");
     }
 
     private void Cancelar() => NavManager.NavigateTo("/clientes");
