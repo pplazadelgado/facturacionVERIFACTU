@@ -1,0 +1,592 @@
+﻿@* FacturacionVERIFACTU.Web/Components/Pages/Series/SeriesIndex.razor *@
+@* Archivo NUEVO — crear la carpeta Pages/Series si no existe *@
+@page "/series"
+@using Microsoft.AspNetCore.Authorization
+@using FacturacionVERIFACTU.Web.Models.DTOs
+@inject ConfirmDialogService ConfirmDialog
+@attribute [Authorize]
+
+<PageTitle>Series de Numeración - FacturaVERIFACTU</PageTitle>
+
+<div class="notion-content">
+    <div class="notion-header">
+        <div class="header-main">
+            <span class="header-icon">
+                <i class="bi bi-123"></i>
+            </span>
+            <div>
+                <h1>Series de Numeración</h1>
+            </div>
+        </div>
+        <button class="btn-modern-secondary" @onclick="AbrirModalNueva">
+            <i class="bi bi-plus-lg"></i> Nueva Serie
+        </button>
+    </div>
+</div>
+
+@* Filtro por tipo de documento *@
+<div class="notion-toolbar" style="border-bottom: 1px solid #edeceb; margin-bottom: 24px; gap: 8px; flex-wrap: wrap;">
+    @foreach (var tipo in TiposDocumento)
+    {
+        <button class="@(filtroTipo == tipo.Key ? "btn-modern" : "btn-modern-secondary")"
+                style="font-size: 12px; padding: 6px 14px;"
+                @onclick="() => FiltrarPorTipo(tipo.Key)">
+            <i class="bi @tipo.Value.Icono"></i>&nbsp;@tipo.Value.Etiqueta
+        </button>
+    }
+</div>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger" style="font-size: 13px; border-radius: 8px; border: none; background-color: #fff0f0; color: #e03e3e; margin-bottom: 20px; padding: 12px;">
+        <i class="bi bi-exclamation-circle-fill"></i> @errorMessage
+    </div>
+}
+
+@if (isLoading)
+{
+    <div class="notion-loading">
+        <div class="spinner-modern"></div>
+        <span>Cargando series...</span>
+    </div>
+}
+else if (!series.Any())
+{
+    <div class="notion-empty-state" style="padding: 80px 0; text-align: center;">
+        <i class="bi bi-123" style="font-size: 48px; color: #edeceb; margin-bottom: 16px; display: block;"></i>
+        <h4 style="font-weight: 600; margin-bottom: 8px;">No hay series configuradas</h4>
+        <p style="color: #787774; font-size: 14px; margin-bottom: 24px;">Crea tu primera serie de numeración.</p>
+        <button class="btn-modern-secondary" @onclick="AbrirModalNueva">Añadir serie</button>
+    </div>
+}
+else
+{
+    @foreach (var tipo in TiposDocumento.Where(t => t.Key != "TODOS"))
+    {
+        var seriesTipo = seriesFiltradas.Where(s => s.TipoDocumento == tipo.Key).ToList();
+        if (!seriesTipo.Any()) continue;
+
+        <div style="margin-bottom: 36px;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #edeceb;">
+                <i class="bi @tipo.Value.Icono" style="font-size: 15px; color: @tipo.Value.Color;"></i>
+                <h3 style="margin: 0; font-size: 13px; font-weight: 600; color: #37352f; text-transform: uppercase; letter-spacing: .05em;">@tipo.Value.Etiqueta</h3>
+                <span style="background: #f1f1ef; color: #787774; font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 500;">@seriesTipo.Count</span>
+            </div>
+
+            <div class="notion-table-wrapper">
+                <table class="notion-table" style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid var(--notion-border);">
+                            <th style="padding: 12px 16px; width: 9%; text-align: left;">CÓDIGO</th>
+                            <th style="padding: 12px 16px; width: 26%; text-align: left;">DESCRIPCIÓN</th>
+                            <th style="padding: 12px 16px; width: 9%; text-align: left;">EJERCICIO</th>
+                            <th style="padding: 12px 16px; width: 22%; text-align: left;">FORMATO</th>
+                            <th style="padding: 12px 16px; width: 10%; text-align: center;">PRÓX. Nº</th>
+                            <th style="padding: 12px 16px; width: 9%; text-align: center;">ESTADO</th>
+                            <th style="padding: 12px 16px; width: 15%; text-align: right;">ACCIONES</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var serie in seriesTipo.OrderBy(s => s.Ejercicio).ThenBy(s => s.Codigo))
+                        {
+                            <tr style="border-bottom: 1px solid #f7f7f5;">
+                                <td style="padding: 14px 16px; vertical-align: middle;">
+                                    <span class="notion-code-text">@serie.Codigo</span>
+                                </td>
+                                <td style="padding: 14px 16px; vertical-align: middle; font-size: 14px;">@serie.Descripcion</td>
+                                <td style="padding: 14px 16px; vertical-align: middle; font-size: 14px;">@serie.Ejercicio</td>
+                                <td style="padding: 14px 16px; vertical-align: middle;">
+                                    <span class="notion-code-text">@serie.Formato</span>
+                                </td>
+                                <td style="padding: 14px 16px; vertical-align: middle; text-align: center; font-size: 14px; font-weight: 600;">
+                                    @serie.ProximoNumero
+                                </td>
+                                <td style="padding: 14px 16px; vertical-align: middle; text-align: center;">
+                                    @if (serie.Bloqueada)
+                                    {
+                                        <span class="notion-badge inactive">Bloqueada</span>
+                                    }
+                                    else if (serie.Activo)
+                                    {
+                                        <span class="notion-badge active">Activo</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="notion-badge inactive">Inactivo</span>
+                                    }
+                                </td>
+                                <td style="padding: 14px 20px; text-align: right; vertical-align: middle;">
+                                    <div class="notion-actions" style="display: flex; gap: 4px; justify-content: flex-end;">
+                                        <button class="notion-action-btn" title="Editar serie"
+                                                @onclick="() => AbrirModalEditar(serie)">
+                                            <i class="bi bi-pencil-fill" style="font-size: 13px;"></i>
+                                        </button>
+                                        <button class="notion-action-btn" title="Inicializar numeración"
+                                                @onclick="() => AbrirModalProximoNumero(serie)"
+                                                disabled="@serie.Bloqueada">
+                                            <i class="bi bi-arrow-right-circle" style="font-size: 13px;"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+    <div class="notion-table-footer" style="margin-top: 20px; border-top: 1px solid #edeceb; padding-top: 12px; color: rgba(55, 53, 47, 0.4); font-size: 12px;">
+        <span>Total: @series.Count series configuradas</span>
+    </div>
+}
+
+@* ================================================================ *@
+@* MODAL — CREAR / EDITAR SERIE                                       *@
+@* ================================================================ *@
+@if (mostrarModalSerie)
+{
+    <div class="notion-modal-overlay" @onclick="CerrarModalSerie">
+        <div class="notion-modal-productos" @onclick:stopPropagation="true">
+
+            <div class="notion-modal-header">
+                <h3>@(serieEditando == null ? "Nueva serie" : $"Editar serie — {serieEditando.Codigo}")</h3>
+                <button type="button" class="notion-modal-close" @onclick="CerrarModalSerie" aria-label="Cerrar">×</button>
+            </div>
+
+            <div class="notion-modal-body">
+
+                @if (!string.IsNullOrEmpty(modalSerieError))
+                {
+                    <div class="notion-modal-error">
+                        <i class="bi bi-exclamation-triangle"></i> @modalSerieError
+                    </div>
+                }
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+
+                    <div class="notion-input-group">
+                        <label class="notion-label">Código <span style="color:#eb5757">*</span></label>
+                        <input class="notion-input-modern"
+                               @bind="formSerie.Codigo"
+                               maxlength="10"
+                               placeholder="Ej: F, FA, REC..."
+                               disabled="@(serieEditando != null)" />
+                        <span style="font-size: 11px; color: #787774; margin-top: 2px;">
+                            @(serieEditando != null ? "No editable tras la creación" : "Máx. 10 caracteres")
+                        </span>
+                    </div>
+
+                    <div class="notion-input-group">
+                        <label class="notion-label">Ejercicio <span style="color:#eb5757">*</span></label>
+                        <input class="notion-input-modern"
+                               type="number"
+                               @bind="formSerie.Ejercicio"
+                               min="2000" max="9999"
+                               disabled="@(serieEditando != null)" />
+                        @if (serieEditando != null)
+                        {
+                            <span style="font-size: 11px; color: #787774; margin-top: 2px;">No editable</span>
+                        }
+                    </div>
+
+                    <div class="notion-input-group" style="grid-column: span 2;">
+                        <label class="notion-label">Descripción <span style="color:#eb5757">*</span></label>
+                        <input class="notion-input-modern"
+                               @bind="formSerie.Descripcion"
+                               maxlength="100"
+                               placeholder="Ej: Serie principal de facturas" />
+                    </div>
+
+                    @if (serieEditando == null)
+                    {
+                        <div class="notion-input-group" style="grid-column: span 2;">
+                            <label class="notion-label">Tipo de documento <span style="color:#eb5757">*</span></label>
+                            <select class="notion-input-modern" @bind="formSerie.TipoDocumento">
+                                <option value="">— Selecciona un tipo —</option>
+                                <option value="FACTURA">Factura</option>
+                                <option value="ALBARAN">Albarán</option>
+                                <option value="PRESUPUESTO">Presupuesto</option>
+                            </select>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="notion-input-group" style="grid-column: span 2;">
+                            <label class="notion-label">Tipo de documento</label>
+                            <input class="notion-input-modern"
+                                   value="@ObtenerEtiquetaTipo(serieEditando.TipoDocumento)"
+                                   disabled
+                                   style="background: #f8f8f7; color: #787774; cursor: not-allowed;" />
+                            <span style="font-size: 11px; color: #787774; margin-top: 2px;">No editable</span>
+                        </div>
+                    }
+
+                    <div class="notion-input-group" style="grid-column: span 2;">
+                        <label class="notion-label">Formato <span style="color:#eb5757">*</span></label>
+                        <input class="notion-input-modern"
+                               @bind="formSerie.Formato"
+                               maxlength="50"
+                               placeholder="{SERIE}-{NUMERO}/{EJERCICIO}" />
+                        <span style="font-size: 11px; color: #787774; margin-top: 2px;">
+                            Variables: <code>{SERIE}</code> · <code>{NUMERO}</code> · <code>{EJERCICIO}</code>
+                        </span>
+                    </div>
+
+                    @if (serieEditando != null)
+                    {
+                        <div class="notion-input-group" style="display: flex; align-items: center; gap: 10px; padding: 10px 0;">
+                            <InputCheckbox @bind-Value="formSerie.Activo" id="chkActivo" style="width: 18px; height: 18px; accent-color: #000;" />
+                            <label for="chkActivo" style="font-size: 14px; font-weight: 500; cursor: pointer; margin-bottom: 0;">Serie activa</label>
+                        </div>
+                        <div class="notion-input-group" style="display: flex; align-items: center; gap: 10px; padding: 10px 0;">
+                            <InputCheckbox @bind-Value="formSerie.Bloqueada" id="chkBloqueada" style="width: 18px; height: 18px; accent-color: #000;" />
+                            <label for="chkBloqueada" style="font-size: 14px; font-weight: 500; cursor: pointer; margin-bottom: 0;">Bloquear serie</label>
+                        </div>
+                    }
+
+                </div>
+
+                <div class="notion-modal-actions">
+                    <button class="btn-modern-secondary" @onclick="CerrarModalSerie" disabled="@isSavingSerie">Cancelar</button>
+                    <button class="btn-modern" @onclick="GuardarSerieAsync" disabled="@isSavingSerie">
+                        @if (isSavingSerie)
+                        {
+                            <span class="spinner-border spinner-border-sm" role="status"></span>
+                        }
+                        else
+                        {
+                            <span><i class="bi bi-check-lg"></i> @(serieEditando == null ? "Crear serie" : "Guardar cambios")</span>
+                        }
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+}
+
+@* ================================================================ *@
+@* MODAL — INICIALIZAR NUMERACIÓN                                      *@
+@* ================================================================ *@
+@if (mostrarModalProximoNumero && serieProximoNumero != null)
+{
+    <div class="notion-modal-overlay" @onclick="CerrarModalProximoNumero">
+        <div class="notion-modal-productos" @onclick:stopPropagation="true">
+
+            <div class="notion-modal-header">
+                <h3>Inicializar numeración</h3>
+                <button type="button" class="notion-modal-close" @onclick="CerrarModalProximoNumero" aria-label="Cerrar">×</button>
+            </div>
+
+            <div class="notion-modal-body">
+
+                <p style="font-size: 13px; color: rgba(55,53,47,0.6); margin-bottom: 12px;">
+                    Serie <strong>@serieProximoNumero.Codigo</strong> —
+                    @ObtenerEtiquetaTipo(serieProximoNumero.TipoDocumento) —
+                    Ejercicio <strong>@serieProximoNumero.Ejercicio</strong>
+                </p>
+
+                <div class="alert alert-danger" style="font-size: 13px; border-radius: 8px; border: none; background-color: #fff8e6; color: #92400e; margin-bottom: 16px; padding: 12px;">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    Usa esta opción <strong>solo si tu empresa viene de otro sistema</strong> y necesitas continuar con la numeración existente.
+                    No se puede reducir el número actual para evitar duplicados en documentos ya emitidos.
+                </div>
+
+                <div style="display: flex; align-items: flex-end; gap: 16px; margin-bottom: 8px;">
+                    <div class="notion-input-group" style="margin: 0;">
+                        <label class="notion-label">Número actual</label>
+                        <input class="notion-input-modern"
+                               value="@serieProximoNumero.ProximoNumero"
+                               disabled
+                               style="background: #f8f8f7; color: #787774; cursor: not-allowed; max-width: 120px;" />
+                    </div>
+                    <i class="bi bi-arrow-right" style="color: #787774; padding-bottom: 10px;"></i>
+                    <div class="notion-input-group" style="margin: 0;">
+                        <label class="notion-label">Nuevo número <span style="color:#eb5757">*</span></label>
+                        <input class="notion-input-modern"
+                               type="number"
+                               @bind="nuevoProximoNumero"
+                               min="@serieProximoNumero.ProximoNumero"
+                               style="max-width: 120px;" />
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(modalProximoNumeroError))
+                {
+                    <div class="notion-modal-error">
+                        <i class="bi bi-exclamation-triangle"></i> @modalProximoNumeroError
+                    </div>
+                }
+
+                <div class="notion-modal-actions">
+                    <button class="btn-modern-secondary" @onclick="CerrarModalProximoNumero" disabled="@isSavingProximoNumero">Cancelar</button>
+                    <button class="btn-modern" @onclick="GuardarProximoNumeroAsync" disabled="@isSavingProximoNumero">
+                        @if (isSavingProximoNumero)
+                        {
+                            <span class="spinner-border spinner-border-sm" role="status"></span>
+                        }
+                        else
+                        {
+                            <span><i class="bi bi-check-lg"></i> Confirmar numeración</span>
+                        }
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Inject] private IApiService ApiService { get; set; } = null!;
+
+    // ── Estado página ────────────────────────────────────────────────────
+    private List<SerieDto> series = new();
+    private List<SerieDto> seriesFiltradas = new();
+    private string filtroTipo = "TODOS";
+    private bool isLoading = true;
+    private string errorMessage = string.Empty;
+
+    private readonly Dictionary<string, (string Etiqueta, string Icono, string Color)> TiposDocumento = new()
+    {
+        ["TODOS"] = ("Todas", "bi-layers", "#6b7280"),
+        ["FACTURA"] = ("Facturas", "bi-receipt", "#0369a1"),
+        ["ALBARAN"] = ("Albaranes", "bi-truck", "#059669"),
+        ["PRESUPUESTO"] = ("Presupuestos", "bi-file-earmark-text", "#7c3aed")
+    };
+
+    // ── Estado modal crear/editar ────────────────────────────────────────
+    private bool mostrarModalSerie;
+    private bool isSavingSerie;
+    private string modalSerieError = string.Empty;
+    private SerieDto? serieEditando;
+    private FormSerie formSerie = new();
+
+    // ── Estado modal próximo número ──────────────────────────────────────
+    private bool mostrarModalProximoNumero;
+    private bool isSavingProximoNumero;
+    private string modalProximoNumeroError = string.Empty;
+    private SerieDto? serieProximoNumero;
+    private int nuevoProximoNumero;
+
+    // ────────────────────────────────────────────────────────────────────
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarSeriesAsync();
+    }
+
+    private async Task CargarSeriesAsync()
+    {
+        isLoading = true;
+        errorMessage = string.Empty;
+
+        try
+        {
+            var response = await ApiService.GetAsync<PaginatedResponseDto<SerieDto>>("api/series?page=1&pageSize=200");
+            series = response?.Items ?? new List<SerieDto>();
+        }
+        catch (HttpRequestException ex)
+        {
+            errorMessage = ex.Message;
+            series = new List<SerieDto>();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error inesperado: {ex.Message}";
+            series = new List<SerieDto>();
+        }
+
+        AplicarFiltro();
+        isLoading = false;
+    }
+
+    private void FiltrarPorTipo(string tipo)
+    {
+        filtroTipo = tipo;
+        AplicarFiltro();
+    }
+
+    private void AplicarFiltro()
+    {
+        seriesFiltradas = filtroTipo == "TODOS"
+            ? series.ToList()
+            : series.Where(s => s.TipoDocumento == filtroTipo).ToList();
+    }
+
+    // ── Modal crear ──────────────────────────────────────────────────────
+    private void AbrirModalNueva()
+    {
+        serieEditando = null;
+        formSerie = new FormSerie { Ejercicio = DateTime.Now.Year, Formato = "{SERIE}-{NUMERO}/{EJERCICIO}", Activo = true };
+        modalSerieError = string.Empty;
+        mostrarModalSerie = true;
+    }
+
+    // ── Modal editar ─────────────────────────────────────────────────────
+    private void AbrirModalEditar(SerieDto serie)
+    {
+        serieEditando = serie;
+        formSerie = new FormSerie
+        {
+            Codigo = serie.Codigo,
+            Descripcion = serie.Descripcion,
+            TipoDocumento = serie.TipoDocumento,
+            Ejercicio = serie.Ejercicio,
+            Formato = serie.Formato,
+            Activo = serie.Activo,
+            Bloqueada = serie.Bloqueada
+        };
+        modalSerieError = string.Empty;
+        mostrarModalSerie = true;
+    }
+
+    private void CerrarModalSerie()
+    {
+        if (isSavingSerie) return;
+        mostrarModalSerie = false;
+    }
+
+    private async Task GuardarSerieAsync()
+    {
+        modalSerieError = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(formSerie.Descripcion) || string.IsNullOrWhiteSpace(formSerie.Formato))
+        {
+            modalSerieError = "Rellena todos los campos obligatorios.";
+            return;
+        }
+
+        if (serieEditando == null)
+        {
+            if (string.IsNullOrWhiteSpace(formSerie.Codigo))
+            {
+                modalSerieError = "El código es obligatorio.";
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(formSerie.TipoDocumento))
+            {
+                modalSerieError = "Selecciona el tipo de documento.";
+                return;
+            }
+        }
+
+        isSavingSerie = true;
+
+        try
+        {
+            if (serieEditando == null)
+            {
+                var createDto = new SerieCreateDto
+                {
+                    Codigo = formSerie.Codigo.Trim(),
+                    Descripcion = formSerie.Descripcion.Trim(),
+                    TipoDocumento = formSerie.TipoDocumento,
+                    Ejercicio = formSerie.Ejercicio,
+                    Formato = formSerie.Formato.Trim(),
+                    Activo = formSerie.Activo
+                };
+                await ApiService.PostAsync<SerieCreateDto, SerieDto>("api/series", createDto);
+            }
+            else
+            {
+                var updateDto = new SerieUpdateDto
+                {
+                    Codigo = formSerie.Codigo.Trim(),
+                    Descripcion = formSerie.Descripcion.Trim(),
+                    Formato = formSerie.Formato.Trim(),
+                    Activo = formSerie.Activo,
+                    Bloqueada = formSerie.Bloqueada
+                };
+                await ApiService.PutAsync<SerieUpdateDto, SerieDto>($"api/series/{serieEditando.Id}", updateDto);
+            }
+
+            mostrarModalSerie = false;
+            await CargarSeriesAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            modalSerieError = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            modalSerieError = $"Error inesperado: {ex.Message}";
+        }
+        finally
+        {
+            isSavingSerie = false;
+        }
+    }
+
+    // ── Modal próximo número ─────────────────────────────────────────────
+    private void AbrirModalProximoNumero(SerieDto serie)
+    {
+        serieProximoNumero = serie;
+        nuevoProximoNumero = serie.ProximoNumero;
+        modalProximoNumeroError = string.Empty;
+        mostrarModalProximoNumero = true;
+    }
+
+    private void CerrarModalProximoNumero()
+    {
+        if (isSavingProximoNumero) return;
+        mostrarModalProximoNumero = false;
+    }
+
+    private async Task GuardarProximoNumeroAsync()
+    {
+        modalProximoNumeroError = string.Empty;
+
+        if (serieProximoNumero == null) return;
+
+        if (nuevoProximoNumero < 1)
+        {
+            modalProximoNumeroError = "El número debe ser mayor que 0.";
+            return;
+        }
+
+        if (nuevoProximoNumero < serieProximoNumero.ProximoNumero)
+        {
+            modalProximoNumeroError = $"El número no puede ser menor que el actual ({serieProximoNumero.ProximoNumero}).";
+            return;
+        }
+
+        isSavingProximoNumero = true;
+
+        try
+        {
+            var dto = new ActualizarProximoNumeroDto { ProximoNumero = nuevoProximoNumero };
+            await ApiService.PatchAsync<ActualizarProximoNumeroDto, SerieDto>(
+                $"api/series/{serieProximoNumero.Id}/proximo-numero", dto);
+
+            mostrarModalProximoNumero = false;
+            await CargarSeriesAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            modalProximoNumeroError = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            modalProximoNumeroError = $"Error inesperado: {ex.Message}";
+        }
+        finally
+        {
+            isSavingProximoNumero = false;
+        }
+    }
+
+    private string ObtenerEtiquetaTipo(string tipo)
+        => TiposDocumento.TryGetValue(tipo, out var t) ? t.Etiqueta : tipo;
+
+    private class FormSerie
+    {
+        public string Codigo { get; set; } = string.Empty;
+        public string Descripcion { get; set; } = string.Empty;
+        public string TipoDocumento { get; set; } = string.Empty;
+        public int Ejercicio { get; set; } = DateTime.Now.Year;
+        public string Formato { get; set; } = "{SERIE}-{NUMERO}/{EJERCICIO}";
+        public bool Activo { get; set; } = true;
+        public bool Bloqueada { get; set; }
+    }
+}

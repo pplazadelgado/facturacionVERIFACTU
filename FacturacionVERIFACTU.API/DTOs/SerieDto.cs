@@ -51,4 +51,15 @@ namespace FacturacionVERIFACTU.API.DTOs
         public bool Bloqueada { get; set; }
     }
 
+    public class ActualizarProximoNumeroDto
+    {
+        /// <summary>
+        /// Número desde el que se generará el siguiente documento.
+        /// Debe ser mayor al número actual para evitar duplicados.
+        /// </summary>
+        [Required]
+        [Range(1, int.MaxValue, ErrorMessage = "El próximo número debe ser mayor que 0.")]
+        public int ProximoNumero { get; set; }
+    }
+
 }

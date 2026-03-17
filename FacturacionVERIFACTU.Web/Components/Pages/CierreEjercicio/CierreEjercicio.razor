@@ -1,0 +1,285 @@
+﻿@page "/cierre-ejercicio"
+@using Microsoft.AspNetCore.Authorization
+@using FacturacionVERIFACTU.Web.Models.DTOs
+@inject IApiService ApiService
+@inject ConfirmDialogService ConfirmDialog
+@inject NavigationManager NavManager
+@attribute [Authorize]
+
+
+@code {
+    // ── Estado ──
+    private int anioSeleccionado = DateTime.Now.Year;
+    private bool isLoading = false;
+    private bool isProcessing = false;
+    private bool isDownloadingLibro = false;
+    private bool isDownloadingResumen = false;
+
+    private string? errorMessage;
+    private string? successMessage;
+
+    // ── Datos ──
+    private EstadisticasCierreDto? estadisticas;
+    private CierreEjercicioDto? cierreActual;
+
+    // ── Modal Reabrir ──
+    private bool mostrarModalReabrir = false;
+    private string motivoReapertura = string.Empty;
+    private bool motivoError = false;
+    private string? errorReabrir;
+
+    // ════════════════════════════════
+    // LIFECYCLE
+    // ════════════════════════════════
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarEstadisticasAsync();
+    }
+
+    // ════════════════════════════════
+    // CARGA DE DATOS
+    // ════════════════════════════════
+    private async Task CargarEstadisticasAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+        successMessage = null;
+        estadisticas = null;
+        cierreActual = null;
+
+        try
+        {
+            // 1. Cargar estadísticas del ejercicio
+            estadisticas = await ApiService.GetAsync<EstadisticasCierreDto>(
+                $"api/cierre-ejercicio/estadisticas/{anioSeleccionado}");
+
+            if (estadisticas == null)
+            {
+                errorMessage = $"No se pudieron cargar los datos del ejercicio {anioSeleccionado}.";
+                return;
+            }
+
+            // 2. Buscar si existe un cierre registrado para ese año
+            var historial = await ApiService.GetAsync<PaginatedResponseDto<CierreEjercicioDto>>(
+                $"api/cierre-ejercicio?ejercicio={anioSeleccionado}");
+
+            cierreActual = historial?.Items?.FirstOrDefault();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error al cargar los datos: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    // ════════════════════════════════
+    // CERRAR EJERCICIO
+    // ════════════════════════════════
+    private Task ConfirmarCierreEjercicio()
+    {
+        var options = new ConfirmDialogOptions(
+            $"¿Cerrar el ejercicio {anioSeleccionado}?",
+            $"Se bloquearán todas las facturas del ejercicio {anioSeleccionado} y se generarán los archivos de cierre. Esta acción es reversible pero queda registrada.",
+            "Cerrar Ejercicio",
+            "Cancelar"
+        );
+
+        ConfirmDialog.Show(options, async () =>
+        {
+            await EjecutarCierreEjercicio();
+        });
+
+        return Task.CompletedTask;
+    }
+
+    private async Task EjecutarCierreEjercicio()
+    {
+        isProcessing = true;
+        errorMessage = null;
+
+        try
+        {
+            var request = new { Ejercicio = anioSeleccionado };
+            var resultado = await ApiService.PostAsync<object, CierreRealizadoDto>(
+                $"api/cierre-ejercicio/cerrar", request);
+
+            if (resultado == null)
+            {
+                throw new InvalidOperationException(
+                    $"No se pudo cerrar el ejercicio {anioSeleccionado}. Comprueba que todas las facturas están enviadas a VERIFACTU.");
+            }
+
+            successMessage = $"✅ Ejercicio {anioSeleccionado} cerrado correctamente. Se han generado los archivos de cierre.";
+            await CargarEstadisticasAsync();
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    // ════════════════════════════════
+    // DESCARGAS
+    // ════════════════════════════════
+    private async Task DescargarLibroFacturas()
+    {
+        if (cierreActual == null) return;
+
+        isDownloadingLibro = true;
+        errorMessage = null;
+
+        try
+        {
+            // Navegar al endpoint de descarga (el navegador gestionará el fichero)
+            NavManager.NavigateTo(
+                $"api/cierre-ejercicio/descargar/libro/{cierreActual.Id}",
+                forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error al descargar el libro de facturas: {ex.Message}";
+        }
+        finally
+        {
+            isDownloadingLibro = false;
+        }
+    }
+
+    private async Task DescargarResumenIVA()
+    {
+        if (cierreActual == null) return;
+
+        isDownloadingResumen = true;
+        errorMessage = null;
+
+        try
+        {
+            NavManager.NavigateTo(
+                $"api/cierre-ejercicio/descargar/resumen-iva/{cierreActual.Id}",
+                forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error al descargar el resumen IVA: {ex.Message}";
+        }
+        finally
+        {
+            isDownloadingResumen = false;
+        }
+    }
+
+    // ════════════════════════════════
+    // REABRIR EJERCICIO
+    // ════════════════════════════════
+    private void MostrarModalReabrir()
+    {
+        motivoReapertura = string.Empty;
+        motivoError = false;
+        errorReabrir = null;
+        mostrarModalReabrir = true;
+    }
+
+    private void CerrarModalReabrir()
+    {
+        if (isProcessing) return;
+        mostrarModalReabrir = false;
+        motivoReapertura = string.Empty;
+        motivoError = false;
+        errorReabrir = null;
+    }
+
+    private async Task EjecutarReabrirEjercicio()
+    {
+        // Validar motivo
+        motivoError = string.IsNullOrWhiteSpace(motivoReapertura);
+        if (motivoError) return;
+
+        if (cierreActual == null) return;
+
+        isProcessing = true;
+        errorReabrir = null;
+
+        try
+        {
+            var request = new { CierreId = cierreActual.Id, Motivo = motivoReapertura.Trim() };
+
+            var apiResult = await ApiService.PostAsyncDetailed(
+                "api/cierre-ejercicio/reabrir", request);
+
+            if (!apiResult.Success)
+            {
+                errorReabrir = string.IsNullOrWhiteSpace(apiResult.ErrorMessage)
+                    ? "No se pudo reabrir el ejercicio. Inténtalo de nuevo."
+                    : apiResult.ErrorMessage;
+                return;
+            }
+
+            mostrarModalReabrir = false;
+            successMessage = $"✅ El ejercicio {anioSeleccionado} ha sido reabierto correctamente.";
+            await CargarEstadisticasAsync();
+        }
+        catch (Exception ex)
+        {
+            errorReabrir = ex.Message;
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    // ════════════════════════════════
+    // DTOs locales (modelos de respuesta de la API)
+    // ════════════════════════════════
+
+    private class EstadisticasCierreDto
+    {
+        public int Ejercicio { get; set; }
+        public int TotalFacturas { get; set; }
+        public int FacturasEnviadas { get; set; }
+        public int FacturasPendientes { get; set; }
+        public bool PuedeCerrar => FacturasPendientes == 0 && TotalFacturas > 0;
+        public decimal TotalBase { get; set; }
+        public decimal TotalIVA { get; set; }
+        public decimal TotalRecargo { get; set; }
+        public decimal TotalRetencion { get; set; }
+        public decimal TotalGeneral { get; set; }
+        public List<ResumenTrimestreDto> ResumenTrimestral { get; set; } = new();
+    }
+
+    private class ResumenTrimestreDto
+    {
+        public int Trimestre { get; set; }
+        public int NumFacturas { get; set; }
+        public decimal BaseImponible { get; set; }
+        public decimal TotalIva { get; set; }
+        public decimal Recargo { get; set; }
+        public decimal Total { get; set; }
+    }
+
+    private class CierreEjercicioDto
+    {
+        public int Id { get; set; }
+        public int Ejercicio { get; set; }
+        public DateTime? FechaCierre { get; set; }
+        public string? NombreUsuario { get; set; }
+        public string? HashFinal { get; set; }
+        public bool EstaAbierto { get; set; }
+        public string? MotivoReapertura { get; set; }
+        public DateTime? FechaReapertura { get; set; }
+        public string? RutaLibroFacturas { get; set; }
+        public string? RutaResumenIVA { get; set; }
+    }
+
+    private class CierreRealizadoDto
+    {
+        public int CierreId { get; set; }
+        public int Ejercicio { get; set; }
+        public string Mensaje { get; set; } = string.Empty;
+    }
+
+}
+

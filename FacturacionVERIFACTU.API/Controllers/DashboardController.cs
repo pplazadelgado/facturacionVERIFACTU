@@ -1,4 +1,5 @@
 ﻿using FacturacionVERIFACTU.API.Data;
+using FacturacionVERIFACTU.API.Data.Interfaces;
 using FacturacionVERIFACTU.API.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,22 +13,25 @@ namespace FacturacionVERIFACTU.API.Controllers
     public class DashboardController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly ITenantContext _tenantContext;
         private readonly ILogger<DashboardController> _logger;
 
         public DashboardController(
             ApplicationDbContext context,
+            ITenantContext tenantContext,
             ILogger<DashboardController> logger)
         {
             _context = context;
+            _tenantContext = tenantContext;
             _logger = logger;
         }
 
-        /// <summary>
-        /// Resumen general del dashboard
-        /// </summary>
         [HttpGet("resumen")]
         public async Task<ActionResult<ResumenDashboardDto>> GetResumen()
         {
+            var tenantId = _tenantContext.GetTenantId();
+            if (tenantId == null) return Unauthorized();
+
             try
             {
                 var mesActual = DateTime.UtcNow.Month;
@@ -35,41 +39,38 @@ namespace FacturacionVERIFACTU.API.Controllers
                 var inicioMes = new DateTime(yearActual, mesActual, 1, 0, 0, 0, DateTimeKind.Utc);
                 var finMes = inicioMes.AddMonths(1);
 
-                // Facturación del mes actual (solo facturas emitidas, no anuladas)
                 var facturacionMesActual = await _context.Facturas
-                    .Where(f => f.FechaEmision >= inicioMes
+                    .Where(f => f.TenantId == tenantId.Value
+                             && f.FechaEmision >= inicioMes
                              && f.FechaEmision < finMes
                              && f.Estado == "Emitida")
-                    .SumAsync(f => f.Total);
+                    .SumAsync(f => (decimal?)f.Total) ?? 0;
 
-                // Facturas pendientes de pago (emitidas, no pagadas ni anuladas)
                 var facturasPendientesPago = await _context.Facturas
-                    .Where(f => f.Estado == "Emitida")
+                    .Where(f => f.TenantId == tenantId.Value && f.Estado == "Emitida")
                     .CountAsync();
 
-                // Presupuestos pendientes (no convertidos a factura ni rechazados)
                 var presupuestosPendientes = await _context.Presupuestos
-                    .Where(p => p.Estado == "Pendiente" || p.Estado == "Enviado")
+                    .Where(p => p.TenantId == tenantId.Value
+                             && (p.Estado == "Pendiente" || p.Estado == "Enviado" || p.Estado == "Borrador"))
                     .CountAsync();
 
-                // Clientes con al menos una factura en los últimos 6 meses
                 var seisMesesAtras = DateTime.UtcNow.AddMonths(-6);
                 var clientesActivos = await _context.Facturas
-                    .Where(f => f.FechaEmision >= seisMesesAtras
+                    .Where(f => f.TenantId == tenantId.Value
+                             && f.FechaEmision >= seisMesesAtras
                              && f.Estado != "Anulada")
                     .Select(f => f.ClienteId)
                     .Distinct()
                     .CountAsync();
 
-                var resumen = new ResumenDashboardDto
+                return Ok(new ResumenDashboardDto
                 {
                     FacturacionMesActual = facturacionMesActual,
                     FacturasPendientesPago = facturasPendientesPago,
                     PresupuestosPendientes = presupuestosPendientes,
                     ClientesActivos = clientesActivos
-                };
-
-                return Ok(resumen);
+                });
             }
             catch (Exception ex)
             {
@@ -78,83 +79,65 @@ namespace FacturacionVERIFACTU.API.Controllers
             }
         }
 
-        /// <summary>
-        /// Facturación mensual por año
-        /// </summary>
         [HttpGet("facturacion-mensual")]
         public async Task<ActionResult<List<FacturacionMensualDto>>> GetFacturacionMensual(
             [FromQuery] int? year = null)
         {
+            var tenantId = _tenantContext.GetTenantId();
+            if (tenantId == null) return Unauthorized();
+
             try
             {
                 var yearConsulta = year ?? DateTime.UtcNow.Year;
                 var inicioYear = new DateTime(yearConsulta, 1, 1, 0, 0, 0, DateTimeKind.Utc);
                 var finYear = inicioYear.AddYears(1);
 
-                var facturacionMensual = await _context.Facturas
-                    .Where(f => f.FechaEmision >= inicioYear
-                             && f.FechaEmision < finYear
-                             && f.Estado != "Anulada")
-                    .GroupBy(f => f.FechaEmision.Month)
-                    .Select(g => new FacturacionMensualDto
-                    {
-                        Mes = ObtenerNombreMes(g.Key),
-                        NumeroMes = g.Key,
-                        Total = g.Sum(f => f.Total),
-                        CantidadFacturas = g.Count()
-                    })
-                    .OrderBy(x => x.NumeroMes)
+                var facturas = await _context.Facturas
+                    .Where(f => f.TenantId == tenantId.Value
+                             && f.Estado != "Anulada"
+                             && f.FechaEmision >= inicioYear
+                             && f.FechaEmision < finYear)
+                    .Select(f => new { f.FechaEmision, f.Total })
                     .ToListAsync();
 
-                // Rellenar meses sin facturación
-                var todosLosMeses = Enumerable.Range(1, 12)
-                    .Select(m => new FacturacionMensualDto
-                    {
-                        Mes = ObtenerNombreMes(m),
-                        NumeroMes = m,
-                        Total = 0,
-                        CantidadFacturas = 0
-                    })
-                    .ToList();
-
-                foreach (var mes in facturacionMensual)
+                var meses = Enumerable.Range(1, 12).Select(mes => new FacturacionMensualDto
                 {
-                    var idx = todosLosMeses.FindIndex(m => m.NumeroMes == mes.NumeroMes);
-                    if (idx >= 0)
-                    {
-                        todosLosMeses[idx] = mes;
-                    }
-                }
+                    NumeroMes = mes,
+                    Mes = new DateTime(yearConsulta, mes, 1).ToString("MMMM"),
+                    Total = facturas
+                        .Where(f => f.FechaEmision.Month == mes)
+                        .Sum(f => f.Total),
+                    CantidadFacturas = facturas
+                        .Count(f => f.FechaEmision.Month == mes)
+                }).ToList();
 
-                return Ok(todosLosMeses);
+                return Ok(meses);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener facturación mensual para año {Year}", year);
+                _logger.LogError(ex, "Error al obtener facturación mensual");
                 return StatusCode(500, "Error al obtener facturación mensual");
             }
         }
 
-        /// <summary>
-        /// Top clientes por facturación
-        /// </summary>
         [HttpGet("clientes-top")]
         public async Task<ActionResult<List<ClienteTopDto>>> GetClientesTop(
             [FromQuery] int limit = 5,
             [FromQuery] int? year = null)
         {
+            var tenantId = _tenantContext.GetTenantId();
+            if (tenantId == null) return Unauthorized();
+
             try
             {
                 var query = _context.Facturas
-                    .Where(f => f.Estado != "Anulada");
+                    .Where(f => f.TenantId == tenantId.Value && f.Estado != "Anulada");
 
-                // Filtrar por año si se especifica
                 if (year.HasValue)
                 {
                     var inicioYear = new DateTime(year.Value, 1, 1, 0, 0, 0, DateTimeKind.Utc);
                     var finYear = inicioYear.AddYears(1);
-                    query = query.Where(f => f.FechaEmision >= inicioYear
-                                          && f.FechaEmision < finYear);
+                    query = query.Where(f => f.FechaEmision >= inicioYear && f.FechaEmision < finYear);
                 }
 
                 var clientesTop = await query
@@ -181,22 +164,21 @@ namespace FacturacionVERIFACTU.API.Controllers
             }
         }
 
-        /// <summary>
-        /// Productos más vendidos
-        /// </summary>
         [HttpGet("productos-mas-vendidos")]
         public async Task<ActionResult<List<ProductoMasVendidoDto>>> GetProductosMasVendidos(
             [FromQuery] int limit = 10,
             [FromQuery] int? year = null)
         {
+            var tenantId = _tenantContext.GetTenantId();
+            if (tenantId == null) return Unauthorized();
+
             try
             {
                 var query = _context.LineasFacturas
-                    .Include(lf => lf.Factura)
-                    .Include(lf => lf.Producto)
-                    .Where(lf => lf.Factura.Estado != "Anulada" && lf.ProductoId != null);
+                    .Where(lf => lf.Factura.TenantId == tenantId.Value
+                              && lf.Factura.Estado != "Anulada"
+                              && lf.ProductoId != null);
 
-                // Filtrar por año si se especifica
                 if (year.HasValue)
                 {
                     var inicioYear = new DateTime(year.Value, 1, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -205,19 +187,15 @@ namespace FacturacionVERIFACTU.API.Controllers
                                            && lf.Factura.FechaEmision < finYear);
                 }
 
+                // ← Calcular importe en SQL directamente, sin usar TotalLinea [NotMapped]
                 var productosMasVendidos = await query
-                    .GroupBy(lf => new
-                    {
-                        lf.ProductoId,
-                        lf.Producto.Descripcion,
-                        lf.Producto.Precio
-                    })
+                    .GroupBy(lf => new { lf.ProductoId, lf.Producto!.Descripcion })
                     .Select(g => new ProductoMasVendidoDto
                     {
-                        ProductoId = g.Key.ProductoId.Value,
+                        ProductoId = g.Key.ProductoId!.Value,
                         Nombre = g.Key.Descripcion,
                         CantidadVendida = g.Sum(lf => lf.Cantidad),
-                        TotalFacturado = g.Sum(lf => lf.TotalLinea),
+                        TotalFacturado = g.Sum(lf => lf.BaseImponible + lf.ImporteIva + lf.ImporteRecargo),
                         PrecioMedio = g.Average(lf => lf.PrecioUnitario)
                     })
                     .OrderByDescending(p => p.CantidadVendida)
@@ -233,53 +211,44 @@ namespace FacturacionVERIFACTU.API.Controllers
             }
         }
 
-        /// <summary>
-        /// Evolución de facturación comparativa (año actual vs año anterior)
-        /// </summary>
         [HttpGet("facturacion-comparativa")]
         public async Task<ActionResult<FacturacionComparativaDto>> GetFacturacionComparativa()
         {
+            var tenantId = _tenantContext.GetTenantId();
+            if (tenantId == null) return Unauthorized();
+
             try
             {
                 var yearActual = DateTime.UtcNow.Year;
                 var yearAnterior = yearActual - 1;
 
-                var inicioActual = new DateTime(yearActual, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-                var finActual = inicioActual.AddYears(1);
-                var inicioAnterior = new DateTime(yearAnterior, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-                var finAnterior = inicioAnterior.AddYears(1);
-
-                // Facturación año actual
-                var facturacionActual = await _context.Facturas
-                    .Where(f => f.FechaEmision >= inicioActual
-                             && f.FechaEmision < finActual
-                             && f.Estado != "Anulada")
-                    .GroupBy(f => f.FechaEmision.Month)
-                    .Select(g => new { Mes = g.Key, Total = g.Sum(f => f.Total) })
+                var facturas = await _context.Facturas
+                    .Where(f => f.TenantId == tenantId.Value
+                             && f.Estado != "Anulada"
+                             && f.FechaEmision.Year >= yearAnterior
+                             && f.FechaEmision.Year <= yearActual)
+                    .Select(f => new { f.FechaEmision, f.Total })
                     .ToListAsync();
 
-                // Facturación año anterior
-                var facturacionAnterior = await _context.Facturas
-                    .Where(f => f.FechaEmision >= inicioAnterior
-                             && f.FechaEmision < finAnterior
-                             && f.Estado != "Anulada")
-                    .GroupBy(f => f.FechaEmision.Month)
-                    .Select(g => new { Mes = g.Key, Total = g.Sum(f => f.Total) })
-                    .ToListAsync();
+                var datosActual = Enumerable.Range(1, 12)
+                    .Select(m => facturas
+                        .Where(f => f.FechaEmision.Year == yearActual && f.FechaEmision.Month == m)
+                        .Sum(f => f.Total))
+                    .ToList();
 
-                var comparativa = new FacturacionComparativaDto
+                var datosAnterior = Enumerable.Range(1, 12)
+                    .Select(m => facturas
+                        .Where(f => f.FechaEmision.Year == yearAnterior && f.FechaEmision.Month == m)
+                        .Sum(f => f.Total))
+                    .ToList();
+
+                return Ok(new FacturacionComparativaDto
                 {
                     YearActual = yearActual,
                     YearAnterior = yearAnterior,
-                    DatosActual = Enumerable.Range(1, 12)
-                        .Select(m => facturacionActual.FirstOrDefault(f => f.Mes == m)?.Total ?? 0)
-                        .ToList(),
-                    DatosAnterior = Enumerable.Range(1, 12)
-                        .Select(m => facturacionAnterior.FirstOrDefault(f => f.Mes == m)?.Total ?? 0)
-                        .ToList()
-                };
-
-                return Ok(comparativa);
+                    DatosActual = datosActual,
+                    DatosAnterior = datosAnterior
+                });
             }
             catch (Exception ex)
             {
@@ -288,61 +257,39 @@ namespace FacturacionVERIFACTU.API.Controllers
             }
         }
 
-        /// <summary>
-        /// Estadísticas de cobros y pendientes
-        /// </summary>
         [HttpGet("estadisticas-cobros")]
         public async Task<ActionResult<EstadisticasCobrosDto>> GetEstadisticasCobros()
         {
+            var tenantId = _tenantContext.GetTenantId();
+            if (tenantId == null) return Unauthorized();
+
             try
             {
                 var facturas = await _context.Facturas
-                    .Where(f => f.Estado != "Anulada")
-                    .Select(f => new { f.Estado, f.Total })
+                    .Where(f => f.TenantId == tenantId.Value && f.Estado != "Anulada")
+                    .Select(f => new { f.Total, f.Estado, f.FechaEmision })
                     .ToListAsync();
 
-                var estadisticas = new EstadisticasCobrosDto
+                var hoy = DateTime.UtcNow;
+
+                return Ok(new EstadisticasCobrosDto
                 {
                     TotalFacturado = facturas.Sum(f => f.Total),
-                    TotalCobrado = facturas
-                        .Where(f => f.Estado == "Pagada")
-                        .Sum(f => f.Total),
-                    TotalPendiente = facturas
-                        .Where(f => f.Estado == "Emitida")
-                        .Sum(f => f.Total),
-                    TotalVencido = 0, // No tienes campo de vencimiento, lo dejamos en 0
+                    TotalCobrado = facturas.Where(f => f.Estado == "Pagada").Sum(f => f.Total),
+                    TotalPendiente = facturas.Where(f => f.Estado == "Emitida").Sum(f => f.Total),
+                    TotalVencido = facturas.Where(f => f.Estado == "Emitida"
+                                                    && f.FechaEmision.AddDays(30) < hoy).Sum(f => f.Total),
                     CantidadPagadas = facturas.Count(f => f.Estado == "Pagada"),
                     CantidadPendientes = facturas.Count(f => f.Estado == "Emitida"),
-                    CantidadVencidas = 0 // No tienes campo de vencimiento
-                };
-
-                return Ok(estadisticas);
+                    CantidadVencidas = facturas.Count(f => f.Estado == "Emitida"
+                                                        && f.FechaEmision.AddDays(30) < hoy)
+                });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al obtener estadísticas de cobros");
                 return StatusCode(500, "Error al obtener estadísticas de cobros");
             }
-        }
-
-        private static string ObtenerNombreMes(int mes)
-        {
-            return mes switch
-            {
-                1 => "Enero",
-                2 => "Febrero",
-                3 => "Marzo",
-                4 => "Abril",
-                5 => "Mayo",
-                6 => "Junio",
-                7 => "Julio",
-                8 => "Agosto",
-                9 => "Septiembre",
-                10 => "Octubre",
-                11 => "Noviembre",
-                12 => "Diciembre",
-                _ => "Desconocido"
-            };
         }
     }
 }

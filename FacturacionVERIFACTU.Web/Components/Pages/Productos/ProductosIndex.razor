@@ -74,8 +74,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var producto in productos)
-                    {
+                    <Virtualize Items="@productos" Context="producto" OverscanCount="5">
                         <tr class="@(producto.Activo ? "" : "notion-row-inactive")">
                             <td>
                                 <span class="notion-code-text">@producto.Codigo</span>
@@ -111,7 +110,7 @@
                                 </div>
                             </td>
                         </tr>
-                    }
+                    </Virtualize>
                 </tbody>
             </table>
         </div>

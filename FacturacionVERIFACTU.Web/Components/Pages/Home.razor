@@ -5,6 +5,7 @@
 
 @inject IApiService ApiService
 @inject AuthenticationStateProvider AuthStateProvider
+@inject IWebCacheService WebCache
 
 <PageTitle>Dashboard - FacturacionVERIFACTU</PageTitle>
 
@@ -23,6 +24,8 @@
             </div>
         </div>
 
+        
+        <!--
         <div class="dash-controls">
             <select class="notion-input-modern" style="width: 140px;" @bind="SelectedYear" disabled="@isLoading">
                 @foreach (var y in years)
@@ -35,6 +38,7 @@
                 <i class="bi bi-arrow-clockwise"></i> Actualizar
             </button>
         </div>
+        -->
     </div>
 
     <!-- Accesos rápidos -->
@@ -46,7 +50,6 @@
                 <p class="dash-shortcut-desc">Emisión y control VeriFactu</p>
             </div>
         </a>
-
         <a href="/presupuestos" class="dash-shortcut">
             <div class="dash-icon orange"><i class="bi bi-file-earmark-text"></i></div>
             <div>
@@ -54,7 +57,6 @@
                 <p class="dash-shortcut-desc">Propuestas, estados y conversión</p>
             </div>
         </a>
-
         <a href="/albaranes" class="dash-shortcut">
             <div class="dash-icon cyan"><i class="bi bi-truck"></i></div>
             <div>
@@ -62,7 +64,6 @@
                 <p class="dash-shortcut-desc">Entregas y conversión a factura</p>
             </div>
         </a>
-
         <a href="/clientes" class="dash-shortcut">
             <div class="dash-icon green"><i class="bi bi-people"></i></div>
             <div>
@@ -70,7 +71,6 @@
                 <p class="dash-shortcut-desc">Gestión de clientes</p>
             </div>
         </a>
-
         <a href="/productos" class="dash-shortcut">
             <div class="dash-icon red"><i class="bi bi-box-seam"></i></div>
             <div>
@@ -101,21 +101,18 @@
             <div class="dashboard-kpi">
                 <div class="dashboard-kpi-title">Facturación mes actual</div>
                 <div class="dashboard-kpi-value">@FormatCurrency(resumen?.FacturacionMesActual ?? 0)</div>
-                <div class="dashboard-kpi-hint">Facturas “Emitida” del mes (UTC)</div>
+                <div class="dashboard-kpi-hint">Facturas "Emitida" del mes (UTC)</div>
             </div>
-
             <div class="dashboard-kpi">
                 <div class="dashboard-kpi-title">Facturas pendientes</div>
                 <div class="dashboard-kpi-value">@((resumen?.FacturasPendientesPago ?? 0).ToString("N0"))</div>
-                <div class="dashboard-kpi-hint">Estado = “Emitida”</div>
+                <div class="dashboard-kpi-hint">Estado = "Emitida"</div>
             </div>
-
             <div class="dashboard-kpi">
                 <div class="dashboard-kpi-title">Presupuestos pendientes</div>
                 <div class="dashboard-kpi-value">@((resumen?.PresupuestosPendientes ?? 0).ToString("N0"))</div>
                 <div class="dashboard-kpi-hint">Borrador / Enviado</div>
             </div>
-
             <div class="dashboard-kpi">
                 <div class="dashboard-kpi-title">Clientes activos</div>
                 <div class="dashboard-kpi-value">@((resumen?.ClientesActivos ?? 0).ToString("N0"))</div>
@@ -132,7 +129,6 @@
                         <p class="dash-panel-subtitle">@selectedYear · no anuladas</p>
                     </div>
                 </div>
-
                 @if (facturacionMensual?.Count > 0)
                 {
                     <div class="mini-bars">
@@ -165,7 +161,6 @@
                         <p class="dash-panel-subtitle">@comparativa?.YearAnterior vs @comparativa?.YearActual</p>
                     </div>
                 </div>
-
                 @if (comparativa is not null && comparativa.DatosActual?.Count == 12 && comparativa.DatosAnterior?.Count == 12)
                 {
                     <div class="notion-table-wrapper">
@@ -184,7 +179,6 @@
                                     var prev = comparativa.DatosAnterior[i];
                                     var curr = comparativa.DatosActual[i];
                                     var delta = curr - prev;
-
                                     <tr>
                                         <td>@MesCorto(i + 1)</td>
                                         <td style="text-align:right;">@FormatCurrency(prev)</td>
@@ -207,16 +201,13 @@
             </div>
         </div>
 
-        <!-- Top clientes / productos -->
+        <!-- 2 columnas: Top clientes + Productos -->
         <div class="dash-two-cols">
             <div class="ui-card dash-panel">
                 <div class="dash-panel-head">
-                    <div>
-                        <div class="dash-panel-title">Top clientes</div>
-                        <p class="dash-panel-subtitle">@selectedYear · por total facturado</p>
-                    </div>
+                    <div class="dash-panel-title">Top clientes</div>
+                    <p class="dash-panel-subtitle">@selectedYear · por total facturado</p>
                 </div>
-
                 @if (clientesTop?.Count > 0)
                 {
                     <div class="notion-table-wrapper">
@@ -234,13 +225,13 @@
                                 @foreach (var c in clientesTop)
                                 {
                                     <tr>
-                                        <td title="@c.RazonSocial" style="max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                        <td title="@c.RazonSocial" style="max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                                             @c.RazonSocial
                                         </td>
                                         <td class="notion-code-text" style="color:inherit;">@c.NIF</td>
                                         <td style="text-align:right;">@FormatCurrency(c.TotalFacturado)</td>
                                         <td style="text-align:right;">@c.CantidadFacturas</td>
-                                        <td>@(c.UltimaFactura?.ToLocalTime().ToString("dd/MM/yyyy") ?? "-")</td>
+                                        <td>@(c.UltimaFactura?.ToLocalTime().ToString("dd/MM/yy") ?? "-")</td>
                                     </tr>
                                 }
                             </tbody>
@@ -255,12 +246,9 @@
 
             <div class="ui-card dash-panel">
                 <div class="dash-panel-head">
-                    <div>
-                        <div class="dash-panel-title">Productos más vendidos</div>
-                        <p class="dash-panel-subtitle">@selectedYear · por cantidad vendida</p>
-                    </div>
+                    <div class="dash-panel-title">Productos más vendidos</div>
+                    <p class="dash-panel-subtitle">@selectedYear · por cantidad vendida</p>
                 </div>
-
                 @if (productosMasVendidos?.Count > 0)
                 {
                     <div class="notion-table-wrapper">
@@ -277,7 +265,7 @@
                                 @foreach (var p in productosMasVendidos)
                                 {
                                     <tr>
-                                        <td title="@p.Nombre" style="max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                        <td title="@p.Nombre" style="max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                                             @p.Nombre
                                         </td>
                                         <td style="text-align:right;">@p.CantidadVendida.ToString("N2")</td>
@@ -297,43 +285,38 @@
         </div>
 
         <!-- Cobros -->
-        <div class="ui-card dash-panel">
+        <div class="ui-card dash-panel" style="margin-bottom: 16px;">
             <div class="dash-panel-head">
                 <div>
                     <div class="dash-panel-title">Cobros</div>
                     <p class="dash-panel-subtitle">Facturado vs cobrado vs pendiente</p>
                 </div>
             </div>
-
             @if (cobros is not null)
             {
-                <div class="dashboard-kpi-grid" style="margin-top: 8px;">
+                <div class="dashboard-kpi-grid" style="margin-top:8px;">
                     <div class="dashboard-kpi">
                         <div class="dashboard-kpi-title">Total facturado</div>
                         <div class="dashboard-kpi-value">@FormatCurrency(cobros.TotalFacturado)</div>
                         <div class="dashboard-kpi-hint">No anuladas</div>
                     </div>
-
                     <div class="dashboard-kpi">
                         <div class="dashboard-kpi-title">Total cobrado</div>
                         <div class="dashboard-kpi-value">@FormatCurrency(cobros.TotalCobrado)</div>
-                        <div class="dashboard-kpi-hint">Estado = “Pagada”</div>
+                        <div class="dashboard-kpi-hint">Estado = "Pagada"</div>
                     </div>
-
                     <div class="dashboard-kpi">
                         <div class="dashboard-kpi-title">Total pendiente</div>
                         <div class="dashboard-kpi-value">@FormatCurrency(cobros.TotalPendiente)</div>
-                        <div class="dashboard-kpi-hint">Estado = “Emitida”</div>
+                        <div class="dashboard-kpi-hint">Estado = "Emitida"</div>
                     </div>
-
                     <div class="dashboard-kpi">
                         <div class="dashboard-kpi-title">Vencido</div>
                         <div class="dashboard-kpi-value">@FormatCurrency(cobros.TotalVencido)</div>
                         <div class="dashboard-kpi-hint">Vencidas</div>
                     </div>
                 </div>
-
-                <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top: 14px;">
+                <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;">
                     <span class="notion-badge inactive">Pagadas: @cobros.CantidadPagadas</span>
                     <span class="notion-badge inactive">Pendientes: @cobros.CantidadPendientes</span>
                     <span class="notion-badge inactive">Vencidas: @cobros.CantidadVencidas</span>
@@ -364,7 +347,8 @@
     protected override async Task OnInitializedAsync()
     {
         selectedYear = DateTime.Now.Year;
-        years = Enumerable.Range(selectedYear - 4, 5).Reverse().ToList();
+        years = Enumerable.Range(DateTime.Now.Year - 3, 4).Reverse().ToList();
+
         await ReloadAll();
     }
 
@@ -376,7 +360,10 @@
             if (selectedYear != value)
             {
                 selectedYear = value;
-                _ = ReloadYearScoped();
+                // Invalidar caché del año seleccionado
+                WebCache.Invalidate($"dashboard:resumen:{selectedYear}");
+                WebCache.Invalidate($"dashboard:mensual:{selectedYear}");
+                _ = ReloadAll();
             }
         }
     }
@@ -385,38 +372,42 @@
     {
         error = null;
         isLoading = true;
+        StateHasChanged();
 
         try
         {
+            // Sin caché en resumen — no filtra por año de todas formas
             resumen = await ApiService.GetAsync<ResumenDashboardDto>("api/dashboard/resumen");
-            await ReloadYearScoped();
-            comparativa = await ApiService.GetAsync<FacturacionComparativaDto>("api/dashboard/facturacion-comparativa");
-            cobros = await ApiService.GetAsync<EstadisticasCobrosDto>("api/dashboard/estadisticas-cobros");
+
+            // Con caché solo en los que sí filtran por año
+            facturacionMensual = await WebCache.GetOrCreateAsync(
+                $"dashboard:mensual:{selectedYear}",
+                () => ApiService.GetAsync<List<FacturacionMensualDto>>(
+                    $"api/dashboard/facturacion-mensual?year={selectedYear}"),
+                TimeSpan.FromMinutes(2)
+            );
+
+            clientesTop = await ApiService.GetAsync<List<ClienteTopDto>>(
+                $"api/dashboard/clientes-top?limit=5&year={selectedYear}");
+
+            comparativa = await ApiService.GetAsync<FacturacionComparativaDto>(
+                "api/dashboard/facturacion-comparativa");
+
+            cobros = await ApiService.GetAsync<EstadisticasCobrosDto>(
+                "api/dashboard/estadisticas-cobros");
+
+            productosMasVendidos = await ApiService.GetAsync<List<ProductoMasVendidoDto>>(
+                $"api/dashboard/productos-mas-vendidos?limit=10&year={selectedYear}");
         }
         catch (Exception ex)
         {
             error = $"Error cargando dashboard: {ex.Message}";
-            Console.WriteLine($"Error en ReloadAll: {ex}");
+            Console.WriteLine($"[Dashboard] Error: {ex}");
         }
         finally
         {
             isLoading = false;
             await InvokeAsync(StateHasChanged);
-        }
-    }
-
-    private async Task ReloadYearScoped()
-    {
-        try
-        {
-            facturacionMensual = await ApiService.GetAsync<List<FacturacionMensualDto>>($"api/dashboard/facturacion-mensual?year={selectedYear}");
-            clientesTop = await ApiService.GetAsync<List<ClienteTopDto>>($"api/dashboard/clientes-top?limit=5&year={selectedYear}");
-            productosMasVendidos = await ApiService.GetAsync<List<ProductoMasVendidoDto>>($"api/dashboard/productos-mas-vendidos?limit=10&year={selectedYear}");
-        }
-        catch (Exception ex)
-        {
-            error = $"Error cargando datos del año: {ex.Message}";
-            Console.WriteLine($"Error en ReloadYearScoped: {ex}");
         }
     }
 

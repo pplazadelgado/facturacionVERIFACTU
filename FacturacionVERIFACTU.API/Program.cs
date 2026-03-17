@@ -172,6 +172,23 @@ builder.Services.AddCors(options =>
     });
 });
 
+// ============================================
+// BLOQUE 29: CACHÉ + APPLICATION INSIGHTS
+// ============================================
+builder.Services.AddMemoryCache();
+
+builder.Services.AddScoped<ICacheService, CacheService>();
+
+//Application Insights (vacio en dev, activo en Azure)
+var aiConnectionString = builder.Configuration["ApplicationInsights:ConnectionString"];
+if (!string.IsNullOrEmpty(aiConnectionString))
+{
+    builder.Services.AddApplicationInsightsTelemetry(options =>
+    {
+        options.ConnectionString = aiConnectionString;
+    });
+}
+
 var app = builder.Build();
 
 // ===== MIDDLEWARE PIPELINE =====

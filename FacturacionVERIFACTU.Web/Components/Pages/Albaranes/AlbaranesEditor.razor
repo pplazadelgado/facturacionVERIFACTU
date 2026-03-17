@@ -172,44 +172,73 @@
                             var lineaActual = linea;
                             var lineaIndex = index++;
                             <tr key="@lineaIndex">
+                                <td style="padding: 12px 10px; position: relative;">
+                                    <div style="display: flex; gap: 6px; align-items: center;">
+                                        <input type="text"
+                                               class="notion-input-modern"
+                                               placeholder="Descripción"
+                                               value="@lineaActual.Descripcion"
+                                               @onchange="@(e => { lineaActual.Descripcion = e.Value?.ToString() ?? string.Empty; })"
+                                               disabled="@(!EsEditable)"
+                                               style="font-size: 13px; width: 100%;"
+                                               title="@lineaActual.Descripcion" />
+                                        @if (EsEditable)
+                                        {
+                                            <button type="button"
+                                                    class="notion-action-btn"
+                                                    title="Editar descripción completa"
+                                                    @onclick="@(() => AbrirPopupDescripcion(lineaActual))">
+                                                <i class="bi bi-pencil-square"></i>
+                                            </button>
+                                        }
+                                    </div>
+
+                                    @if (lineaConPopupAbierto == lineaActual)
+                                    {
+                                        <div class="notion-modal-overlay" @onclick="CancelarPopupDescripcion">
+                                            <div class="notion-modal" style="padding: 24px;" @onclick:stopPropagation="true">
+                                                <h3 style="margin: 0 0 16px 0;">Editar descripción</h3>
+                                                <textarea class="notion-input-modern"
+                                                          rows="6"
+                                                          style="width: 100%; font-size: 13px; resize: vertical;"
+                                                          @onchange="@(e => { lineaActual.Descripcion = e.Value?.ToString() ?? string.Empty; StateHasChanged(); })"
+                                                >@lineaActual.Descripcion</textarea>
+                                                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px;">
+                                                    <button type="button" class="btn-modern-secondary" @onclick="CancelarPopupDescripcion">
+                                                        Cancelar
+                                                    </button>
+                                                    <button type="button" class="btn-modern" @onclick="CerrarPopupDescripcion">
+                                                        Aceptar
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                </td>
                                 <td style="padding: 12px 10px;">
-                                    <input type="text"
-                                           class="notion-input-modern"
-                                           placeholder="Descripción"
-                                           @bind="lineaActual.Descripcion"
-                                           @bind:event="oninput"
-                                           disabled="@(!EsEditable)" />
+                                   <input type="number"
+                                       class="notion-input-modern"
+                                       style="text-align: right;"
+                                       value="@lineaActual.Cantidad.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)"
+                                       @onchange="@(e => { if (decimal.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var v)) lineaActual.Cantidad = v; })"
+                                       disabled="@(!EsEditable)" />
                                 </td>
                                 <td style="padding: 12px 10px;">
                                     <input type="number"
-                                           class="notion-input-modern"
-                                           style="text-align: right;"
-                                           step="0.01"
-                                           min="0.01"
-                                           @bind="lineaActual.Cantidad"
-                                           @bind:event="oninput"
-                                           disabled="@(!EsEditable)" />
+                                       class="notion-input-modern"
+                                       style="text-align: right;"
+                                       value="@lineaActual.PrecioUnitario.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)"
+                                       @onchange="@(e => { if (decimal.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var v)) lineaActual.PrecioUnitario = v; })"
+                                       disabled="@(!EsEditable)" />
                                 </td>
                                 <td style="padding: 12px 10px;">
                                     <input type="number"
-                                           class="notion-input-modern"
-                                           style="text-align: right;"
-                                           step="0.01"
-                                           min="0"
-                                           @bind="lineaActual.PrecioUnitario"
-                                           @bind:event="oninput"
-                                           disabled="@(!EsEditable)" />
-                                </td>
-                                <td style="padding: 12px 10px;">
-                                    <input type="number"
-                                           class="notion-input-modern"
-                                           style="text-align: right;"
-                                           step="0.01"
-                                           min="0"
-                                           max="100"
-                                           @bind="lineaActual.PorcentajeDescuento"
-                                           @bind:event="oninput"
-                                           disabled="@(!EsEditable)" />
+                                       class="notion-input-modern"
+                                       style="text-align: right;"
+                                       max="100"
+                                       value="@lineaActual.PorcentajeDescuento.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)"
+                                       @onchange="@(e => { if (decimal.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var v)) lineaActual.PorcentajeDescuento = v; })"
+                                       disabled="@(!EsEditable)" />
                                 </td>
                                 <td style="padding: 12px 10px;">
                                     <select class="notion-input-modern"
@@ -460,6 +489,8 @@
     private string busquedaCliente = string.Empty;
     private ClienteDto? clienteSeleccionado;
     private bool aplicaRecargoEquivalencia;
+    private LineaAlbaranViewModel? lineaConPopupAbierto;
+    private string? descripcionOriginal;
 
     private bool EsEditable => Id == 0 || estadoAlbaran == "Pendiente";
 
@@ -548,6 +579,28 @@
         {
             errorMessage = $"Error al cargar albarán: {ex.Message}";
         }
+    }
+
+    private void AbrirPopupDescripcion(LineaAlbaranViewModel linea)
+    {
+        if(!EsEditable) return;
+        lineaConPopupAbierto = linea;
+        descripcionOriginal = linea.Descripcion;
+        StateHasChanged();
+    }
+
+    private void CerrarPopupDescripcion()
+    {
+        lineaConPopupAbierto = null;
+        descripcionOriginal = null;
+    }
+
+    private void CancelarPopupDescripcion()
+    {
+        if (lineaConPopupAbierto != null && descripcionOriginal != null)
+            lineaConPopupAbierto.Descripcion = descripcionOriginal;
+        lineaConPopupAbierto = null;
+        descripcionOriginal = null;
     }
 
     private async Task GuardarAsync()

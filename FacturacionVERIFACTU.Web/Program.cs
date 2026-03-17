@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
 using CurrieTechnologies.Razor.SweetAlert2;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.ResponseCompression;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,6 +32,8 @@ builder.Services.AddAuthorization();
 builder.Services.AddScoped<ProtectedSessionStorage>();
 builder.Services.AddScoped<AuthenticationStateProvider, CustomAuthStateProvider>();
 builder.Services.AddScoped<ConfirmDialogService>();
+
+builder.Services.AddScoped<IWebCacheService, WebCacheService>();
 
 
 // ========================================
@@ -83,9 +86,52 @@ builder.Services.AddScoped<IApiService, ApiService>();
 // 4. PIPELINE DE LA APLICACIÓN (MIDDLEWARE)
 // ========================================
 
-builder.Services.AddSweetAlert2(); 
+builder.Services.AddSweetAlert2();
+
+var cultureInfo = new System.Globalization.CultureInfo("es-ES");
+System.Globalization.CultureInfo.DefaultThreadCurrentCulture = cultureInfo;
+System.Globalization.CultureInfo.DefaultThreadCurrentUICulture = cultureInfo;
+System.Globalization.CultureInfo.DefaultThreadCurrentCulture = new System.Globalization.CultureInfo("es-ES");
+System.Globalization.CultureInfo.DefaultThreadCurrentUICulture = new System.Globalization.CultureInfo("es-ES");
+
+// ============================================
+// BLOQUE 29: COMPRESIÓN + CACHÉ WEB + AI
+// ============================================
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<BrotliCompressionProvider>();
+    options.Providers.Add<GzipCompressionProvider>();
+    options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(new[]
+    {
+        "application/octet-stream",
+        "text/event-stream",
+        "application/json"
+    });
+});
+
+builder.Services.Configure<BrotliCompressionProviderOptions>(options =>
+    options.Level = System.IO.Compression.CompressionLevel.Fastest);
+
+builder.Services.AddMemoryCache();
+
+// Application Insights 8actio en Azure)
+var aiConnStr = builder.Configuration["ApplicationInsights:ConnectionString"];
+if (!string.IsNullOrEmpty(aiConnStr))
+{
+    builder.Services.AddApplicationInsightsTelemetry(options =>
+    {
+        options.ConnectionString = aiConnStr;
+    });
+}
+
 
 var app = builder.Build();
+
+app.UseRequestLocalization(new RequestLocalizationOptions()
+    .SetDefaultCulture("es-ES")
+    .AddSupportedCultures("es-ES")
+    .AddSupportedUICultures("es-ES"));
 
 if (!app.Environment.IsDevelopment())
 {
@@ -94,6 +140,7 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseResponseCompression();
 app.UseStaticFiles();
 app.UseAntiforgery();
 

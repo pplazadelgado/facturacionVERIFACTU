@@ -1739,3 +1739,34 @@ input[type=number] {
         white-space: nowrap !important;
         flex-shrink: 0 !important;
     }
+
+/* ============================================================
+   MODAL SERIES DE NUMERACIÓN
+   Añadir al final de: FacturacionVERIFACTU.Web/wwwroot/app.css
+   ============================================================ */
+
+.notion-modal-series {
+    background: #fff;
+    border: 1px solid #edeceb;
+    border-radius: 12px;
+    box-shadow: 0 8px 40px rgba(15, 15, 15, 0.15);
+    width: min(92vw, 560px);
+    max-width: 560px;
+    max-height: 90vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.notion-modal-series-sm {
+    background: #fff;
+    border: 1px solid #edeceb;
+    border-radius: 12px;
+    box-shadow: 0 8px 40px rgba(15, 15, 15, 0.15);
+    width: min(92vw, 460px);
+    max-width: 460px;
+    display: flex;
+    flex-direction: column;
+}
+
+

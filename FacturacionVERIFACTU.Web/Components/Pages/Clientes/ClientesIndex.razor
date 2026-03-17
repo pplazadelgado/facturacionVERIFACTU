@@ -16,35 +16,27 @@
                 <h1>Clientes</h1>
             </div>
         </div>
-        <button class="btn-modern" @onclick="NuevoCliente">
+        <button class="btn-modern-secondary" @onclick="NuevoCliente">
             <i class="bi bi-plus-lg"></i> Nuevo Cliente
         </button>
     </div>
 
-    @* Toolbar de búsqueda *@
-    <div class="notion-toolbar" style="margin-bottom: 24px;">
-        <div style="display: flex; align-items: center; gap: 10px; background: white; border: 1.5px solid #e0e0e0; border-radius: 10px; padding: 10px 16px; max-width: 420px; transition: all 0.2s;">
-            <i class="bi bi-search" style="font-size: 15px; color: rgba(15,23,42,.40);"></i>
+    <div class="notion-toolbar" style="border-bottom: 1px solid #edeceb; margin-bottom: 30px;">
+        <div class="notion-search-wrapper" style="max-width: 100%; border: none;">
+            <i class="bi bi-search" style="font-size: 14px;"></i>
             <input @bind="searchText"
                    @bind:event="oninput"
                    @onkeyup="Buscar"
                    placeholder="Buscar por razón social, CIF..."
-                   style="border: none !important; outline: none !important; background: transparent !important; width: 100%; font-size: 14px; color: #0f172a; box-shadow: none !important; padding: 0 !important; margin: 0 !important; border-radius: 0 !important;" />
+                   class="notion-search-input" />
         </div>
     </div>
 
-    @* Contenido principal *@
     @if (isLoading)
     {
         <div class="notion-loading">
             <div class="spinner-modern"></div>
             <span>Cargando base de datos...</span>
-        </div>
-    }
-    else if (!string.IsNullOrEmpty(errorMessage))
-    {
-        <div class="alert alert-danger" style="font-size: 13px; border-radius: 12px; border: 1px solid rgba(239,68,68,.18); background-color: rgba(239,68,68,.10); color: #b91c1c; margin-bottom: 20px; padding: 12px;">
-            <i class="bi bi-exclamation-circle-fill"></i> @errorMessage
         </div>
     }
     else if (clientes == null || !clientes.Any())
@@ -53,64 +45,57 @@
             <i class="bi bi-person-vcard" style="font-size: 48px; color: #edeceb; margin-bottom: 16px; display: block;"></i>
             <h4 style="font-weight: 600; margin-bottom: 8px;">No hay clientes</h4>
             <p style="color: #787774; font-size: 14px; margin-bottom: 24px;">Empieza agregando tu primer cliente para facturar.</p>
-            <button class="btn-modern-secondary" @onclick="NuevoCliente">Añadir cliente</button>
+            <button class="notion-button primary" @onclick="NuevoCliente">Añadir cliente</button>
         </div>
     }
     else
     {
         <div class="notion-table-wrapper">
-            <table class="notion-table">
+            <table class="notion-table" style="width: 100%; border-collapse: collapse;">
                 <thead>
-                    <tr>
-                        <th style="width: 35%; text-align: left;">RAZÓN SOCIAL</th>
-                        <th style="width: 15%; text-align: left;">CIF / NIF</th>
-                        <th style="width: 25%; text-align: left;">EMAIL</th>
-                        <th style="width: 10%; text-align: center;">ESTADO</th>
-                        <th style="width: 15%; text-align: right;">ACCIONES</th>
+                    <tr style="border-bottom: 1px solid var(--notion-border);">
+                        <th style="padding: 12px 16px; width: 35%; text-align: left;">RAZÓN SOCIAL</th>
+                        <th style="padding: 12px 16px; width: 15%; text-align: left;">CIF / NIF</th>
+                        <th style="padding: 12px 16px; width: 25%; text-align: left;">EMAIL</th>
+                        <th style="padding: 12px 16px; width: 10%; text-align: center;">ESTADO</th>
+                        <th style="padding: 12px 16px; width: 15%; text-align: right;">ACCIONES</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var cliente in clientes)
-                    {
+                    <Virtualize Items="@clientes" Context="cliente" OverscanCount="5" TItem="ClienteDto">
                         <tr class="@(cliente.Activo ? "" : "notion-row-inactive")">
-                            <td style="max-width: 0;">
-                                <div class="notion-cell-title" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                                    @cliente.Nombre
-                                </div>
+                            <td style="padding: 16px">
+                                <div class="notion-cell-title">@cliente.Nombre</div>
                             </td>
-                            <td>
+                            <td style="padding: 16px">
                                 <span class="notion-code-text">@cliente.NIF</span>
                             </td>
-                            <td style="max-width: 0;">
-                                <span style="color: rgba(15,23,42,.65); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;">
-                                    @(cliente.Email ?? "-")
-                                </span>
+                            <td style="padding: 16px">
+                                <span style="color: #787774; font-size: 14px;">@(cliente.Email ?? "-")</span>
                             </td>
-                            <td style="text-align: center;">
+                            <td style="padding: 16px; text-align: center">
                                 <span class="notion-badge @(cliente.Activo ? "active" : "inactive")">
                                     @(cliente.Activo ? "Activo" : "Inactivo")
                                 </span>
                             </td>
-                            <td style="text-align: right;">
-                                <div class="notion-actions" style="justify-content: flex-end; gap: 6px;">
-                                    <button class="notion-action-btn" title="Editar"
-                                            @onclick="() => EditarCliente(cliente)">
+                            <td style="padding: 16px; text-align: right;">
+                                <div class="notion-actions" style="justify-content: flex-end; gap: 4px;">
+                                    <button class="notion-action-btn" @onclick="() => EditarCliente(cliente)">
                                         <i class="bi bi-pencil"></i>
                                     </button>
-                                    <button class="notion-action-btn delete" title="Eliminar"
-                                            @onclick="() => EliminarCliente(cliente)">
+                                    <button class="notion-action-btn delete" @onclick="() => EliminarCliente(cliente)">
                                         <i class="bi bi-trash3"></i>
                                     </button>
                                 </div>
                             </td>
                         </tr>
-                    }
+                    </Virtualize>
                 </tbody>
             </table>
         </div>
 
-        <div class="notion-table-footer" style="margin-top: 14px; color: rgba(15,23,42,.50); font-size: 12px;">
-            <span>Total: @clientes.Count clientes</span>
+        <div class="notion-table-footer" style="margin-top: 20px; border-top: 1px solid #edeceb; padding-top: 12px; color: rgba(55, 53, 47, 0.4); font-size: 12px;">
+            <span>Mostrando @clientes.Count clientes</span>
         </div>
     }
 
@@ -145,20 +130,20 @@
         try
         {
             var endpoint = string.IsNullOrWhiteSpace(search)
-           ? "api/clientes"
-           : $"api/clientes?search={Uri.EscapeDataString(search)}";
+                ? "api/clientes"
+                : $"api/clientes?search={Uri.EscapeDataString(search)}";
+
             var response = await ApiService.GetAsync<PaginatedResponseDto<ClienteDto>>(endpoint);
-            clientes = response.Items ?? new List<ClienteDto>();
+            clientes = response?.Items ?? new List<ClienteDto>();  // ← añadir el ?
         }
-        catch (HttpRequestException ex)
-        {
-            errorMessage = ex.Message;
-            clientes = new List<ClienteDto>();
-        }
-        catch(Exception ex)
+        catch (Exception ex)
         {
             errorMessage = $"Error inesperado: {ex.Message}";
             clientes = new List<ClienteDto>();
+        }
+        finally
+        {
+            isLoading = false;  // ← garantizado siempre
         }
     }
 

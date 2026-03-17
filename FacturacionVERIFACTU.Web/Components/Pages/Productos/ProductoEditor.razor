@@ -49,7 +49,7 @@
                     @* Fila 2: Descripción (Ancho completo) *@
                     <div class="notion-input-group" style="grid-column: span 2;">
                         <label class="notion-label">Descripción</label>
-                        <InputText @bind-Value="producto.Descripcion" class="notion-input-modern" placeholder="Nombre o descripción detallada del servicio" />
+                        <InputTextArea @bind-Value="producto.Descripcion" class="notion-input-modern" rows="3" placeholder="Nombre o descripción detallada del servicio" />
                         <ValidationMessage For="() => producto.Descripcion" class="notion-error" />
                     </div>
 

@@ -305,6 +305,52 @@ namespace FacturacionVERIFACTU.API.Controllers
             return await ActualizarEstadoAsync(id, serie => serie.Activo = false);
         }
 
+        /// <summary>
+        ///  Inciliza manuelmente el proximo numero de una serie.
+        ///  Util cuando una empresa migra desde otro sistema a mitad de ejercicio
+        /// </summary>
+        [HttpPatch("{id}/proximo-numero")]
+        public async Task<ActionResult<SerieDto>> ActualizarProximoNumero(int id, [FromBody] ActualizarProximoNumeroDto dto)
+        {
+            var tenantId = _tenantContext.GetTenantId();
+            if (tenantId == null || tenantId == 0)
+            {
+                return Unauthorized(new { message = "Tenant no identificado" });
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var serie = await _context.SeriesNumeracion.FirstOrDefaultAsync(s => s.TenantId == tenantId.Value && s.Id == id);
+
+            if (serie == null)
+            {
+                return NotFound(new { message = "Serie no encontrada" });
+            }
+
+            if (serie.Bloqueada)
+            {
+                return BadRequest(new { message = "No se puede modificar una serie bloqueada" });
+            }
+
+            if (dto.ProximoNumero < serie.ProximoNumero)
+            {
+                return BadRequest(new
+                {
+                    message = $"El proximo numero ({dto.ProximoNumero}) no puede ser menor que el actual ({serie.ProximoNumero}). Podria generar duplicados en documentos ya emitidos."
+                });
+            }
+
+            serie.ProximoNumero = dto.ProximoNumero;
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Prosimo numero de serie {SerieID} (tenant {TenantId} actualizado a {ProximoNumero}", serie.Id, tenantId, dto.ProximoNumero);
+
+            return Ok(MapToDto(serie));
+        }
+
         private async Task<ActionResult<SerieDto>> ActualizarEstadoAsync(int id, Action<SerieNumeracion> actualizar)
         {
             var tenantId = _tenantContext.GetTenantId();

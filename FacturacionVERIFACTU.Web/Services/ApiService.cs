@@ -85,6 +85,25 @@ namespace FacturacionVERIFACTU.Web.Services
             }
         }
 
+        public async Task<ApiResult> PostAsyncDetailed<TRequest>(string endpoint, TRequest data)
+        {
+            try
+            {
+                await AddAuthHeaderAsync();
+                var response = await _httpClient.PostAsJsonAsync(endpoint, data);
+                var errorMessage = response.IsSuccessStatusCode
+                     ? null
+                     : await ExtractErrorMessageAsync(response);
+
+                return new ApiResult(response.IsSuccessStatusCode, response.StatusCode, errorMessage);
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, "Erro en POST {Endpoint}", endpoint);
+                return new ApiResult(false, HttpStatusCode.InternalServerError, ex.Message);
+            }
+        }
+
         public async Task<TResponse?> PutAsync<TRequest, TResponse>(string endpoint, TRequest data)
         {
             try

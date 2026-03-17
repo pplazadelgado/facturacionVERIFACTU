@@ -15,26 +15,28 @@
                 <h1>Tipos de impuesto</h1>
             </div>
         </div>
-        <button class="btn-modern" @onclick="NuevoTipo">
-            <i class="bi bi-plus-lg"></i> Nuevo Tipo
+        <button class="btn-modern-secondary" @onclick="NuevoTipo">
+            <i class="bi bi-plus-lg"></i> Nuevo tipo
         </button>
     </div>
 
     @if (isLoading)
     {
-        <div class="notion-loading">
-            <div class="spinner-modern"></div>
-            <span>Cargando tipos de impuesto...</span>
+        <div class="notion-loading" style="padding: 50px; text-align: center;">
+            <span class="spinner-border spinner-border-sm" role="status"></span>
+            <span style="margin-left: 10px; color: #787774;">Cargando tipos...</span>
         </div>
     }
     else if (!string.IsNullOrEmpty(errorMessage))
     {
-        <div class="alert alert-danger" style="font-size: 13px; border-radius: 12px; border: 1px solid rgba(239,68,68,.18); background-color: rgba(239,68,68,.10); color: #b91c1c; margin-bottom: 20px; padding: 12px;">
-            <i class="bi bi-exclamation-circle-fill"></i> @errorMessage
-            <button class="btn-modern-secondary" style="margin-left: 12px; padding: 4px 10px; font-size: 12px;" @onclick="CargarTiposAsync">Reintentar</button>
+        <div class="notion-empty-state" style="padding: 80px 0; text-align: center;">
+            <i class="bi bi-exclamation-triangle" style="font-size: 48px; color: #edeceb; margin-bottom: 16px; display: block;"></i>
+            <h4 style="font-weight: 600; margin-bottom: 8px;">Error</h4>
+            <p style="color: #787774; font-size: 14px; margin-bottom: 24px;">@errorMessage</p>
+            <button class="btn-modern-secondary" @onclick="CargarTiposAsync">Reintentar</button>
         </div>
     }
-    else if (tiposImpuesto == null || !tiposImpuesto.Any())
+    else if (!tiposImpuesto.Any())
     {
         <div class="notion-empty-state" style="padding: 80px 0; text-align: center;">
             <i class="bi bi-percent" style="font-size: 48px; color: #edeceb; margin-bottom: 16px; display: block;"></i>
@@ -46,50 +48,36 @@
     else
     {
         <div class="notion-table-wrapper">
-            <table class="notion-table">
+            <table class="notion-table" style="width: 100%; border-collapse: collapse;">
                 <thead>
-                    <tr>
-                        <th style="width: 35%; text-align: left;">NOMBRE</th>
-                        <th style="width: 20%; text-align: right;">IVA</th>
-                        <th style="width: 20%; text-align: right;">RECARGO</th>
-                        <th style="width: 12%; text-align: center;">ESTADO</th>
-                        <th style="width: 13%; text-align: right;">ACCIONES</th>
+                    <tr style="border-bottom: 1px solid var(--notion-border);">
+                        <th style="padding: 12px 16px; width: 30%; text-align: left;">NOMBRE</th>
+                        <th style="padding: 12px 16px; width: 20%; text-align: right;">IVA</th>
+                        <th style="padding: 12px 16px; width: 20%; text-align: right;">RE</th>
+                        <th style="padding: 12px 16px; width: 15%; text-align: center;">ESTADO</th>
+                        <th style="padding: 12px 16px; width: 15%; text-align: right;">ACCIONES</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach (var tipo in tiposImpuesto)
                     {
                         <tr class="@(tipo.Activo ? "" : "notion-row-inactive")">
-                            <td>
+                            <td style="padding: 16px">
                                 <div class="notion-cell-title">@tipo.Nombre</div>
                             </td>
-                            <td style="text-align: right;">
-                                <span class="notion-badge badge-info">@tipo.PorcentajeIva.ToString("N2")%</span>
-                            </td>
-                            <td style="text-align: right;">
-                                @if (tipo.PorcentajeRecargo.HasValue)
-                                {
-                                    <span class="notion-badge badge-warning">@tipo.PorcentajeRecargo.Value.ToString("N2")%</span>
-                                }
-                                else
-                                {
-                                    <span style="color: rgba(15,23,42,.35); font-size: 14px;">—</span>
-                                }
-                            </td>
-                            <td style="text-align: center;">
+                            <td style="padding: 16px; text-align: right;">@tipo.PorcentajeIva.ToString("N2")%</td>
+                            <td style="padding: 16px; text-align: right;">@(tipo.PorcentajeRecargo.HasValue ? $"{tipo.PorcentajeRecargo.Value.ToString("N2")}%" : "-")</td>
+                            <td style="padding: 16px; text-align: center;">
                                 <span class="notion-badge @(tipo.Activo ? "active" : "inactive")">
                                     @(tipo.Activo ? "Activo" : "Inactivo")
                                 </span>
                             </td>
-                            <td style="text-align: right;">
-                                <div class="notion-actions" style="justify-content: flex-end; gap: 6px;">
-                                    <button class="notion-action-btn" title="Editar"
-                                            @onclick="() => EditarTipo(tipo)">
+                            <td style="padding: 16px; text-align: right;">
+                                <div class="notion-actions" style="justify-content: flex-end; gap: 4px;">
+                                    <button class="notion-action-btn" @onclick="() => EditarTipo(tipo)">
                                         <i class="bi bi-pencil"></i>
                                     </button>
-                                    <button class="notion-action-btn @(tipo.Activo ? "delete" : "")"
-                                            title="@(tipo.Activo ? "Desactivar" : "Activar")"
-                                            @onclick="() => CambiarEstado(tipo)">
+                                    <button class="notion-action-btn delete" @onclick="() => CambiarEstado(tipo)">
                                         <i class="bi bi-power"></i>
                                     </button>
                                 </div>
@@ -100,7 +88,7 @@
             </table>
         </div>
 
-        <div class="notion-table-footer" style="margin-top: 14px; color: rgba(15,23,42,.50); font-size: 12px;">
+        <div class="notion-table-footer" style="margin-top: 20px; border-top: 1px solid #edeceb; padding-top: 12px; color: rgba(55, 53, 47, 0.4); font-size: 12px;">
             <span>Total: @tiposImpuesto.Count tipos configurados</span>
         </div>
     }
@@ -128,9 +116,9 @@
 
         try
         {
-            var response = await ApiService.GetAsync<List<TipoImpuestoListadoDto>>("api/tiposimpuesto") ?? new List<TipoImpuestoListadoDto>(); ;
+            tiposImpuesto = await ApiService.GetAsync<List<TipoImpuestoListadoDto>>("api/tiposimpuesto") ?? new List<TipoImpuestoListadoDto>();
         }
-        catch(HttpRequestException ex)
+        catch (HttpRequestException ex)
         {
             errorMessage = ex.Message;
             tiposImpuesto = new List<TipoImpuestoListadoDto>();

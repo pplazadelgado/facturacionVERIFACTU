@@ -33,6 +33,7 @@ namespace FacturacionVERIFACTU.API.Data.Services
         private readonly AEATClient _verifactuHttpClient;
         private readonly ILogger<FacturaService> _logger;
         private readonly IServiceScopeFactory _scopeFactory;
+        private readonly ICacheService _cacheService;
 
         public FacturaService(
             ApplicationDbContext context,
@@ -40,7 +41,8 @@ namespace FacturacionVERIFACTU.API.Data.Services
             VERIFACTUService verifactuService,
             AEATClient verifactuHttpClient,
             ILogger<FacturaService> logger,
-            IServiceScopeFactory scopeFactory)
+            IServiceScopeFactory scopeFactory,
+            ICacheService cacheService)
         {
             _context = context;
             _numeracionService = numeracionService;
@@ -48,6 +50,7 @@ namespace FacturacionVERIFACTU.API.Data.Services
             _verifactuHttpClient = verifactuHttpClient;
             _logger = logger;
             _scopeFactory = scopeFactory;
+            _cacheService = cacheService;
         }
 
         // ====================================================================
@@ -1163,18 +1166,21 @@ namespace FacturacionVERIFACTU.API.Data.Services
             linea.ImporteRecargo = Math.Round(subtotal * (linea.RePercentSnapshot / 100), 2);
             linea.Importe = Math.Round(linea.BaseImponible + linea.ImporteIva + linea.ImporteRecargo, 2);
         }
-
         private async Task<List<TipoImpuesto>> ObtenerTiposImpuestoActivosAsync(int tenantId, DateTime fechaReferencia)
         {
-            return await _context.TiposImpuesto
-                .Where(t => t.TenantId == tenantId
-                    && t.Activo
-                    && (t.FechaInicio == null || t.FechaInicio <= fechaReferencia)
-                    && (t.FechaFin == null || t.FechaFin >= fechaReferencia))
-                .OrderBy(t => t.Orden.HasValue ? 0 : 1)
-                .ThenBy(t => t.Orden)
-                .ThenBy(t => t.Id)
-                .ToListAsync();
+            var cacheKey = $"tipos_impuesto:{tenantId}:{fechaReferencia:yyyy-MM-dd}";
+
+            return await _cacheService.GetOrCreateAsync(
+                cacheKey,
+                async () => await _context.TiposImpuesto
+                    .Where(t => t.TenantId == tenantId
+                        && t.Activo
+                        && (t.FechaInicio == null || t.FechaInicio <= fechaReferencia)
+                        && (t.FechaFin == null || t.FechaFin >= fechaReferencia))
+                    .OrderBy(t => t.Orden)
+                    .ToListAsync(),
+                TimeSpan.FromMinutes(60)
+            ) ?? new List<TipoImpuesto>();
         }
 
         private (TipoImpuesto? TipoImpuesto, decimal Iva, decimal Recargo) ResolverTipoImpuesto(
