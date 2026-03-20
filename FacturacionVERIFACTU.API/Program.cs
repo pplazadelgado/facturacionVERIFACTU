@@ -146,6 +146,28 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 // ============================================
+// BLOQUE 29: CACHÉ + APPLICATION INSIGHTS
+// ============================================
+// Después — fuerza la configuración sin SizeLimit
+builder.Services.AddMemoryCache(options =>
+{
+    options.SizeLimit = null; // sin límite, evita el error
+    options.CompactionPercentage = 0.25;
+});
+
+builder.Services.AddScoped<ICacheService, CacheService>();
+
+//Application Insights (vacio en dev, activo en Azure)
+var aiConnectionString = builder.Configuration["ApplicationInsights:ConnectionString"];
+if (!string.IsNullOrEmpty(aiConnectionString))
+{
+    builder.Services.AddApplicationInsightsTelemetry(options =>
+    {
+        options.ConnectionString = aiConnectionString;
+    });
+}
+
+// ============================================
 // CONFIGURAR HTTPCLIENT CON POLLY
 // ============================================
 var aeatUrl = builder.Configuration.GetValue<string>("VERIFACTU:AEATUrl")
@@ -172,22 +194,7 @@ builder.Services.AddCors(options =>
     });
 });
 
-// ============================================
-// BLOQUE 29: CACHÉ + APPLICATION INSIGHTS
-// ============================================
-builder.Services.AddMemoryCache();
 
-builder.Services.AddScoped<ICacheService, CacheService>();
-
-//Application Insights (vacio en dev, activo en Azure)
-var aiConnectionString = builder.Configuration["ApplicationInsights:ConnectionString"];
-if (!string.IsNullOrEmpty(aiConnectionString))
-{
-    builder.Services.AddApplicationInsightsTelemetry(options =>
-    {
-        options.ConnectionString = aiConnectionString;
-    });
-}
 
 var app = builder.Build();
 

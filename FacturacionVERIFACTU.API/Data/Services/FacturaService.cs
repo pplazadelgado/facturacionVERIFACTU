@@ -150,8 +150,12 @@ namespace FacturacionVERIFACTU.API.Data.Services
                 Estado = "Emitida",
                 Observaciones = dto.Observaciones,
                 TipoFacturaVERIFACTU = DeterminarTipoFacturaVerifactu(cliente),
-                NumeroFacturaRectificada = dto.NumeroFacturaRectificada,
-                TipoRectificacion = dto.TipoRectificacion,
+                NumeroFacturaRectificada = string.IsNullOrWhiteSpace(dto.NumeroFacturaRectificada)
+                    ? null
+                    : dto.NumeroFacturaRectificada,
+               TipoRectificacion = string.IsNullOrWhiteSpace(dto.TipoRectificacion)
+                    ? null                           // ← null en lugar de ""
+                    : dto.TipoRectificacion,
 
                 PorcentajeRetencion = porcentajeRetencion, // ⭐ DESDE CLIENTE
                 Bloqueada = false,
@@ -584,37 +588,57 @@ namespace FacturacionVERIFACTU.API.Data.Services
             string? estado = null,
             DateTime? fechaDesde = null,
             DateTime? fechaHasta = null)
-        {
-            var query = _context.Facturas
-                .Include(f => f.Lineas)
-                .Include(f => f.Cliente)
-                .Include(f => f.Serie)
-                .Where(f => f.TenantId == tenantId);
+                {
+                    var query = _context.Facturas
+                        .Where(f => f.TenantId == tenantId)
+                        .AsNoTracking();
 
-            if (clienteId.HasValue)
-                query = query.Where(f => f.ClienteId == clienteId.Value);
+                    if (clienteId.HasValue)
+                        query = query.Where(f => f.ClienteId == clienteId.Value);
+                    if (!string.IsNullOrEmpty(estado))
+                        query = query.Where(f => f.Estado == estado);
+                    if (fechaDesde.HasValue)
+                        query = query.Where(f => f.FechaEmision >= fechaDesde.Value.ToUniversalTime());
+                    if (fechaHasta.HasValue)
+                        query = query.Where(f => f.FechaEmision <= fechaHasta.Value.ToUniversalTime());
 
-            if (!string.IsNullOrEmpty(estado))
-                query = query.Where(f => f.Estado == estado);
-
-            if (fechaDesde.HasValue)
-                query = query.Where(f => f.FechaEmision >= fechaDesde.Value.ToUniversalTime());
-
-            if (fechaHasta.HasValue)
-                query = query.Where(f => f.FechaEmision <= fechaHasta.Value.ToUniversalTime());
-
-            var facturas = await query
-                .OrderByDescending(f => f.FechaEmision)
-                .ToListAsync();
-
-            var result = new List<FacturaResponseDto>();
-            foreach (var factura in facturas)
-            {
-                result.Add(await MapearAResponseDto(factura));
-            }
-
-            return result;
-        }
+                    return await query
+                        .OrderByDescending(f => f.FechaEmision)
+                        .Select(f => new FacturaResponseDto
+                        {
+                            Id = f.Id,
+                            TenantId = f.TenantId,
+                            ClienteId = f.ClienteId,
+                            ClienteNombre = f.Cliente.Nombre,
+                            ClienteNIF = f.Cliente.NIF,
+                            SerieId = f.SerieId,
+                            SerieCodigo = f.Serie.Codigo,
+                            Numero = f.Numero,
+                            Ejercicio = f.Ejercicio,
+                            FechaEmision = f.FechaEmision,
+                            BaseImponible = f.BaseImponible,
+                            TotalIva = f.TotalIVA,
+                            TotalRecargo = f.TotalRecargo ?? 0m,
+                            PorcentajeRetencion = f.PorcentajeRetencion ?? 0m,
+                            CuotaRetencion = f.CuotaRetencion ?? 0m,
+                            Total = f.Total,
+                            Estado = f.Estado,
+                            Bloqueada = f.Bloqueada,
+                            Observaciones = f.Observaciones,
+                            Huella = f.Huella,
+                            HuellaAnterior = f.HuellaAnterior,
+                            EnviadaVERIFACTU = f.EnviadaVERIFACTU,
+                            FechaEnvioVERIFACTU = f.FechaEnvioVERIFACTU,
+                            TipoFacturaVERIFACTU = f.TipoFacturaVERIFACTU,
+                            UrlVERIFACTU = f.UrlVERIFACTU,
+                            QRBase64 = f.QRVerifactu != null ? Convert.ToBase64String(f.QRVerifactu) : null,
+                            NumeroFacturaRectificada = f.NumeroFacturaRectificada,
+                            TipoRectificacion = f.TipoRectificacion,
+                            AlbaranesIds = f.Albaranes.Select(a => a.Id).ToList(),
+                            Lineas = new List<LineaFacturaResponseDto>() // vacío en listado
+                        })
+                        .ToListAsync();
+                }
 
 
         // ====================================================================

@@ -34,6 +34,13 @@
                 </button>
             }
         </div>
+        <select class="notion-input-modern" style="height:32px; width:90px; font-size:13px; padding: 0 8px;"
+                @onchange="e => { ejercicioSeleccionado = int.Parse(e.Value!.ToString()!); StateHasChanged(); }">
+            @foreach (var año in ejerciciosDisponibles)
+            {
+                <option value="@año" selected="@(año == ejercicioSeleccionado)">@año</option>
+            }
+        </select>
         <div class="notion-search-wrapper" style="border: 1px solid #edeceb; max-width: 260px; height: 32px; display: flex; align-items: center; padding: 0 8px; border-radius: 6px;">
             <i class="bi bi-search" style="font-size: 13px; color: #787774;"></i>
             <input class="notion-search-input"
@@ -288,6 +295,8 @@
     private int clienteIdFiltro = 0;
     private string filtroEstado = string.Empty;
     private string filtroTipoFactura = string.Empty;
+    private int ejercicioSeleccionado = DateTime.Now.Year;
+    private List<int> ejerciciosDisponibles = new();
 
     private bool mostrarModalPago;
     private bool esAccionMasiva;
@@ -295,12 +304,12 @@
     private PagoFormModel pagoForm = new();
 
     private List<FacturaResponseDto> facturasAMostrar => todasFacturas
-         .Where(f =>
-        (clienteIdFiltro == 0 || f.ClienteId == clienteIdFiltro) &&
-        (string.IsNullOrEmpty(estadoSeleccionado) || f.Estado == estadoSeleccionado) &&
-        (string.IsNullOrEmpty(filtroTipoFactura) || f.TipoFacturaVERIFACTU == filtroTipoFactura) &&
-         (f.ClienteNombre != null && f.ClienteNombre.Contains(busquedaCliente, StringComparison.OrdinalIgnoreCase)))
-    .ToList();
+        .Where(f => f.Ejercicio == ejercicioSeleccionado)
+        .Where(f => clienteIdFiltro == 0 || f.ClienteId == clienteIdFiltro)
+        .Where(f => string.IsNullOrEmpty(estadoSeleccionado) || f.Estado == estadoSeleccionado)
+        .Where(f => string.IsNullOrEmpty(filtroTipoFactura) || f.TipoFacturaVERIFACTU == filtroTipoFactura)
+        .Where(f => f.ClienteNombre != null && f.ClienteNombre.Contains(busquedaCliente, StringComparison.OrdinalIgnoreCase))
+        .ToList();
 
     private string? estadoSeleccionado = null;
     private string busquedaCliente = string.Empty;
@@ -329,7 +338,6 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await CargarClientesAsync();
         await CargarFacturasAsync();
     }
 
@@ -355,6 +363,15 @@
         try
         {
             todasFacturas = await ApiService.GetAsync<List<FacturaResponseDto>>("api/facturas") ?? new();
+
+            ejerciciosDisponibles = todasFacturas
+                .Select(f => f.Ejercicio)
+                .Distinct()
+                .OrderByDescending(e => e)
+                .ToList();
+
+            if (!ejerciciosDisponibles.Contains(ejercicioSeleccionado) && ejerciciosDisponibles.Any())
+                ejercicioSeleccionado = ejerciciosDisponibles.First();
         }
         catch (Exception ex)
         {
@@ -400,9 +417,10 @@
 
     private int ObtenerConteo(string? estado)
     {
-        if (string.IsNullOrWhiteSpace(estado))
-            return todasFacturas.Count();
-        return todasFacturas.Count(f => f.Estado.Equals(estado, StringComparison.OrdinalIgnoreCase));
+        var response = todasFacturas.Where(f => f.Ejercicio == ejercicioSeleccionado);
+        return string.IsNullOrWhiteSpace(estado)
+            ? response.Count()
+            : response.Count(f => f.Estado.Equals(estado, StringComparison.OrdinalIgnoreCase));
     }
 
     private void ToggleSeleccion(FacturaResponseDto factura,ChangeEventArgs args)

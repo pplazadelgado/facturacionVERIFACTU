@@ -229,30 +229,55 @@
                                         </div>
                                     }
                                 </td>
+                                @* CANTIDAD *@
                                 <td style="padding: 12px 10px;">
-                                    <input type="number"
-                                           class="notion-input-modern"
-                                           style="text-align: right;"
-                                           value="@lineaActual.Cantidad.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)"
-                                           @onchange="@(e => { if (decimal.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var v)) lineaActual.Cantidad = v; })"
-                                           disabled="@(!EsEditable)" />
+                                    <input type="text"
+                                            inputmode="decimal"
+                                            class="notion-input-modern"
+                                            style="text-align: right;"
+                                            value="@lineaActual.Cantidad.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)"
+                                            @onchange="@(e => {
+                                                var raw = (e.Value?.ToString() ?? "").Replace(',', '.');
+                                                if (decimal.TryParse(raw, System.Globalization.NumberStyles.Any,
+                                                    System.Globalization.CultureInfo.InvariantCulture, out var v) && v > 0)
+                                                    lineaActual.Cantidad = v;
+                                                StateHasChanged();
+                                            })"
+                                            disabled="@(!EsEditable)" />
                                 </td>
+
+                                @* PRECIO *@
                                 <td style="padding: 12px 10px;">
-                                    <input type="number"
-                                           class="notion-input-modern"
-                                           style="text-align: right;"
-                                           value="@lineaActual.PrecioUnitario.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)"
-                                           @onchange="@(e => { if (decimal.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var v)) lineaActual.PrecioUnitario = v; })"
-                                           disabled="@(!EsEditable)" />
+                                    <input type="text"
+                                            inputmode="decimal"
+                                            class="notion-input-modern"
+                                            style="text-align: right;"
+                                            value="@lineaActual.PrecioUnitario.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)"
+                                            @onchange="@(e => {
+                                                var raw = (e.Value?.ToString() ?? "").Replace(',', '.');
+                                                if (decimal.TryParse(raw, System.Globalization.NumberStyles.Any,
+                                                    System.Globalization.CultureInfo.InvariantCulture, out var v) && v >= 0)
+                                                    lineaActual.PrecioUnitario = v;
+                                                StateHasChanged();
+                                            })"
+                                            disabled="@(!EsEditable)" />
                                 </td>
+
+                                @* DESCUENTO *@
                                 <td style="padding: 12px 10px;">
-                                    <input type="number"
-                                           class="notion-input-modern"
-                                           style="text-align: right;"
-                                           max="100"
-                                           value="@lineaActual.PorcentajeDescuento.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)"
-                                           @onchange="@(e => { if (decimal.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var v)) lineaActual.PorcentajeDescuento = v; })"
-                                           disabled="@(!EsEditable)" />
+                                    <input type="text"
+                                            inputmode="decimal"
+                                            class="notion-input-modern"
+                                            style="text-align: right;"
+                                            value="@lineaActual.PorcentajeDescuento.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)"
+                                            @onchange="@(e => {
+                                                var raw = (e.Value?.ToString() ?? "").Replace(',', '.');
+                                                if (decimal.TryParse(raw, System.Globalization.NumberStyles.Any,
+                                                    System.Globalization.CultureInfo.InvariantCulture, out var v) && v >= 0 && v <= 100)
+                                                    lineaActual.PorcentajeDescuento = v;
+                                                StateHasChanged();
+                                            })"
+                                            disabled="@(!EsEditable)" />
                                 </td>
                                 <td style="padding: 12px 10px;">
                                     <select class="notion-input-modern"

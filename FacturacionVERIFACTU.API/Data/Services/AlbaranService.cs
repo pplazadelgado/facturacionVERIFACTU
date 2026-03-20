@@ -354,27 +354,42 @@ namespace FacturacionVERIFACTU.API.Data.Services
         public async Task<List<AlbaranResponseDto>> ObtenerTodosAsync(int tenantId, string? estado = null)
         {
             var query = _context.Albaranes
-                .Include(a => a.Lineas)
-                .Include(a => a.Cliente)
-                .Include(a => a.Presupuesto)
-                .Where(a => a.TenantId == tenantId);
+                .Where(a => a.TenantId == tenantId)
+                .AsNoTracking();
 
             if (!string.IsNullOrEmpty(estado))
-            {
                 query = query.Where(a => a.Estado == estado);
-            }
 
-            var albaranes = await query
-            .OrderByDescending(a => a.FechaEmision)
-            .ToListAsync();
-
-            var result = new List<AlbaranResponseDto>();
-            foreach (var albaran in albaranes)
-            {
-                result.Add(await MapearAResponseDto(albaran));
-            }
-
-            return result;
+            return await query
+                .OrderByDescending(a => a.FechaEmision)
+                .Select(a => new AlbaranResponseDto
+                {
+                    Id = a.Id,
+                    TenantId = a.TenantId,
+                    ClienteId = a.ClienteId,
+                    ClienteNombre = a.Cliente.Nombre,
+                    SerieId = a.SerieId,
+                    SerieCodigo = a.Serie.Codigo,
+                    PresupuestoId = a.PresupuestoId,
+                    PresupuestoNumero = a.Presupuesto.Numero,
+                    Numero = a.Numero,
+                    Ejercicio = a.Ejercicio,
+                    FechaEmision = a.FechaEmision,
+                    FechaEntrega = a.FechaEntrega,
+                    BaseImponible = a.BaseImponible,
+                    TotalIVA = a.TotalIVA,
+                    TotalRecargo = a.TotalRecargo,
+                    Total = a.Total,
+                    Estado = a.Estado,
+                    DireccionEntrega = a.DireccionEntrega,
+                    Observaciones = a.Observaciones,
+                    Facturado = a.Facturado,
+                    FacturaId = a.FacturaId,
+                    Lineas = new List<LineaAlbaranResponseDto>(), // vacío en listado
+                    FechaCreacion = a.FechaCreacion,
+                    FechaModificacion = a.FechaModificacion
+                })
+                .ToListAsync();
         }
 
 

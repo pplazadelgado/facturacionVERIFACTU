@@ -35,6 +35,13 @@
                 </button>
             }
         </div>
+        <select class="notion-input-modern" style="height:32px; width:90px; font-size:13px; padding: 0 8px;"
+                @onchange="e => { ejercicioSeleccionado = int.Parse(e.Value!.ToString()!); StateHasChanged(); }">
+            @foreach (var año in ejerciciosDisponibles)
+            {
+                <option value="@año" selected="@(año == ejercicioSeleccionado)">@año</option>
+            }
+        </select>
         <div class="notion-search-wrapper" style="border: 1px solid #edeceb; max-width: 260px; height: 32px; display: flex; align-items: center; padding: 0 8px;border-radius: 6px;">
             <i class="bi bi-search" style="font-size: 13px; color: #787774;"></i>
             <input class="notion-search-input" placeholder="Buscar cliente..." @bind="busquedaCliente" @bind:event="oninput" @bind:after="StateHasChanged" style="outline: none; box-shadow: none; border: none; background: transparent; height: 100%; padding: 0 6px; font-size: 13px;" />
@@ -198,6 +205,8 @@
     private bool isLoading = true;
     private string errorMessage = string.Empty;
     private string busquedaCliente = string.Empty;
+    private int ejercicioSeleccionado = DateTime.Now.Year;
+    private List<int> ejerciciosDisponibles = new();
 
     private readonly List<EstadoTab> estadosDisponibles = new()
     {
@@ -210,6 +219,7 @@
 
     private IEnumerable<AlbaranResponseDto> albaranesFiltrados =>
         albaranes
+            .Where(a => a.Ejercicio == ejercicioSeleccionado)
             .Where(a => estadoSeleccionado == null || a.Estado == estadoSeleccionado)
             .Where(a => string.IsNullOrWhiteSpace(busquedaCliente) ||
                         a.ClienteNombre.Contains(busquedaCliente, StringComparison.OrdinalIgnoreCase));
@@ -231,6 +241,15 @@
         {
             var response = await ApiService.GetAsync<List<AlbaranResponseDto>>("api/albaranes");
             albaranes = response ?? new();
+
+            ejerciciosDisponibles = albaranes
+                .Select(a => a.Ejercicio)
+                .Distinct()
+                .OrderByDescending(e => e)
+                .ToList();
+
+            if (!ejerciciosDisponibles.Contains(ejercicioSeleccionado) && ejerciciosDisponibles.Any())
+                ejercicioSeleccionado = ejerciciosDisponibles.First();
         }
         catch (Exception ex)
         {
@@ -251,9 +270,10 @@
 
     private int ObtenerConteo(string? estado)
     {
-        return estado == null
-            ? albaranes.Count
-            : albaranes.Count(a => a.Estado == estado);
+        var response = albaranes.Where(a => a.Ejercicio == ejercicioSeleccionado);
+        return string.IsNullOrWhiteSpace(estado)
+            ? response.Count()
+            : response.Count(a => a.Estado == estado);
     }
 
     private string ObtenerClaseEstado(string estado) => estado switch

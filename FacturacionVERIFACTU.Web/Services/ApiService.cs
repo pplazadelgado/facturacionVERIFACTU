@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace FacturacionVERIFACTU.Web.Services
 {
@@ -12,12 +13,20 @@ namespace FacturacionVERIFACTU.Web.Services
         private readonly IAuthService _authService;
         private readonly ILogger<ApiService> _logger;
 
+        // ← Opciones compartidas para toda la clase
+        private static readonly JsonSerializerOptions _jsonOptions = new()
+        {
+            PropertyNameCaseInsensitive = true,
+            NumberHandling = JsonNumberHandling.AllowReadingFromString,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        };
+
         public ApiService(
-            HttpClient httpCient,
+            HttpClient httpClient,
             IAuthService authService,
             ILogger<ApiService> logger)
         {
-            _httpClient = httpCient;
+            _httpClient = httpClient;
             _authService = authService;
             _logger = logger;
         }
@@ -27,7 +36,8 @@ namespace FacturacionVERIFACTU.Web.Services
             var token = await _authService.GetTokenAsync();
             if (!string.IsNullOrEmpty(token))
             {
-                _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                _httpClient.DefaultRequestHeaders.Authorization =
+                    new AuthenticationHeaderValue("Bearer", token);
             }
         }
 
@@ -41,11 +51,12 @@ namespace FacturacionVERIFACTU.Web.Services
                 if (!response.IsSuccessStatusCode)
                 {
                     var errorMessage = await ExtractErrorMessageAsync(response);
-                    _logger.LogWarning("GET {Endpoint} falló: {Status} - {Error}", endpoint, response.StatusCode,errorMessage);
+                    _logger.LogWarning("GET {Endpoint} falló: {Status} - {Error}",
+                        endpoint, response.StatusCode, errorMessage);
                     throw new HttpRequestException(errorMessage ?? $"Error {response.StatusCode}");
                 }
 
-                return await response.Content.ReadFromJsonAsync<T>();
+                return await response.Content.ReadFromJsonAsync<T>(_jsonOptions);
             }
             catch (HttpRequestException)
             {
@@ -63,22 +74,25 @@ namespace FacturacionVERIFACTU.Web.Services
             try
             {
                 await AddAuthHeaderAsync();
-                var response = await _httpClient.PostAsJsonAsync(endpoint, data);
+                // ← Usar JsonContent.Create con opciones en lugar de PostAsJsonAsync
+                var content = JsonContent.Create(data, options: _jsonOptions);
+                var response = await _httpClient.PostAsync(endpoint, content);
 
                 if (!response.IsSuccessStatusCode)
                 {
                     var errorMessage = await ExtractErrorMessageAsync(response);
-                    _logger.LogWarning("POST {Endpoint} falló: {Status} - {Error}", endpoint, response.StatusCode, errorMessage);
+                    _logger.LogWarning("POST {Endpoint} falló: {Status} - {Error}",
+                        endpoint, response.StatusCode, errorMessage);
                     throw new HttpRequestException(errorMessage ?? $"Error {response.StatusCode}");
                 }
 
-                return await response.Content.ReadFromJsonAsync<TResponse>();
+                return await response.Content.ReadFromJsonAsync<TResponse>(_jsonOptions);
             }
             catch (HttpRequestException)
             {
                 throw;
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Error en POST {Endpoint}", endpoint);
                 return default;
@@ -90,16 +104,18 @@ namespace FacturacionVERIFACTU.Web.Services
             try
             {
                 await AddAuthHeaderAsync();
-                var response = await _httpClient.PostAsJsonAsync(endpoint, data);
+                var content = JsonContent.Create(data, options: _jsonOptions);
+                var response = await _httpClient.PostAsync(endpoint, content);
+
                 var errorMessage = response.IsSuccessStatusCode
-                     ? null
-                     : await ExtractErrorMessageAsync(response);
+                    ? null
+                    : await ExtractErrorMessageAsync(response);
 
                 return new ApiResult(response.IsSuccessStatusCode, response.StatusCode, errorMessage);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
-                _logger.LogError(ex, "Erro en POST {Endpoint}", endpoint);
+                _logger.LogError(ex, "Error en POST {Endpoint}", endpoint);
                 return new ApiResult(false, HttpStatusCode.InternalServerError, ex.Message);
             }
         }
@@ -109,16 +125,18 @@ namespace FacturacionVERIFACTU.Web.Services
             try
             {
                 await AddAuthHeaderAsync();
-                var response = await _httpClient.PutAsJsonAsync(endpoint, data);
+                var content = JsonContent.Create(data, options: _jsonOptions);
+                var response = await _httpClient.PutAsync(endpoint, content);
 
                 if (!response.IsSuccessStatusCode)
                 {
                     var errorMessage = await ExtractErrorMessageAsync(response);
-                    _logger.LogWarning("PUT {Endpoint} falló: {Status} - {Error}", endpoint, response.StatusCode,errorMessage);
+                    _logger.LogWarning("PUT {Endpoint} falló: {Status} - {Error}",
+                        endpoint, response.StatusCode, errorMessage);
                     throw new HttpRequestException(errorMessage ?? $"Error {response.StatusCode}");
                 }
 
-                return await response.Content.ReadFromJsonAsync<TResponse>();
+                return await response.Content.ReadFromJsonAsync<TResponse>(_jsonOptions);
             }
             catch (HttpRequestException)
             {
@@ -138,23 +156,25 @@ namespace FacturacionVERIFACTU.Web.Services
                 await AddAuthHeaderAsync();
                 var request = new HttpRequestMessage(HttpMethod.Patch, endpoint)
                 {
-                    Content = JsonContent.Create(data)
+                    Content = JsonContent.Create(data, options: _jsonOptions)
                 };
                 var response = await _httpClient.SendAsync(request);
 
                 if (!response.IsSuccessStatusCode)
                 {
                     var errorMessage = await ExtractErrorMessageAsync(response);
-                    _logger.LogWarning("PATC {Endpoint} fallo: {Status} - {Error}", endpoint, response.StatusCode, errorMessage);
+                    _logger.LogWarning("PATCH {Endpoint} falló: {Status} - {Error}",
+                        endpoint, response.StatusCode, errorMessage);
                     throw new HttpRequestException(errorMessage ?? $"Error {response.StatusCode}");
                 }
-                return await response.Content.ReadFromJsonAsync<TResponse>();
+
+                return await response.Content.ReadFromJsonAsync<TResponse>(_jsonOptions);
             }
             catch (HttpRequestException)
             {
                 throw;
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Error en PATCH {Endpoint}", endpoint);
                 return default;
@@ -173,6 +193,7 @@ namespace FacturacionVERIFACTU.Web.Services
             {
                 await AddAuthHeaderAsync();
                 var response = await _httpClient.DeleteAsync(endpoint);
+
                 var errorMessage = response.IsSuccessStatusCode
                     ? null
                     : await ExtractErrorMessageAsync(response);
@@ -190,9 +211,7 @@ namespace FacturacionVERIFACTU.Web.Services
         {
             var content = await response.Content.ReadAsStringAsync();
             if (string.IsNullOrWhiteSpace(content))
-            {
                 return "Se produjo un error al procesar la solicitud.";
-            }
 
             try
             {
@@ -201,25 +220,36 @@ namespace FacturacionVERIFACTU.Web.Services
 
                 if (root.ValueKind == JsonValueKind.Object)
                 {
-                    if (root.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.String)
+                    // Errores de validación de ASP.NET (errors.campo[])
+                    if (root.TryGetProperty("errors", out var errors) &&
+                        errors.ValueKind == JsonValueKind.Object)
                     {
+                        var mensajes = new List<string>();
+                        foreach (var prop in errors.EnumerateObject())
+                        {
+                            foreach (var msg in prop.Value.EnumerateArray())
+                            {
+                                mensajes.Add(msg.GetString() ?? string.Empty);
+                            }
+                        }
+                        if (mensajes.Any())
+                            return string.Join(" | ", mensajes);
+                    }
+
+                    if (root.TryGetProperty("mensaje", out var mensaje) &&
+                        mensaje.ValueKind == JsonValueKind.String)
+                        return mensaje.GetString();
+
+                    if (root.TryGetProperty("message", out var message) &&
+                        message.ValueKind == JsonValueKind.String)
                         return message.GetString();
-                    }
 
-                    if (root.TryGetProperty("detail", out var detail) && detail.ValueKind == JsonValueKind.String)
-                    {
-                        return detail.GetString();
-                    }
-
-                    if (root.TryGetProperty("title", out var title) && title.ValueKind == JsonValueKind.String)
-                    {
+                    if (root.TryGetProperty("title", out var title) &&
+                        title.ValueKind == JsonValueKind.String)
                         return title.GetString();
-                    }
                 }
             }
-            catch (JsonException)
-            {
-            }
+            catch (JsonException) { }
 
             return content;
         }

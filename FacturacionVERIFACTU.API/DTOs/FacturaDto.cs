@@ -19,7 +19,7 @@ namespace FacturacionVERIFACTU.API.DTOs
         public DateTime? FechaEmision { get; set; }
 
         [MaxLength(500)]
-        public string Observaciones { get; set; }
+        public string? Observaciones { get; set; }
 
         [Required(ErrorMessage = "Debe incluir al menos una linea")]
         [MinLength(1, ErrorMessage = "Debe incluir al menos una linea")]

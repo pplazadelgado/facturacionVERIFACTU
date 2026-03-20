@@ -24,15 +24,18 @@ namespace FacturacionVERIFACTU.API.Data.Services
         private readonly ApplicationDbContext _context;
         private readonly ISerieNumeracionService _numeracionService;
         private readonly ILogger<PresupuestoService> _logger;
+        private readonly ICacheService _cacheService;
 
         public PresupuestoService(
             ApplicationDbContext context,
             ISerieNumeracionService numeracionService,
-            ILogger<PresupuestoService> logger)
+            ILogger<PresupuestoService> logger,
+            ICacheService cacheService)
         {
             _context = context;
             _numeracionService = numeracionService;
             _logger = logger;
+            _cacheService = cacheService;
         }
 
         public async Task<PresupuestoResponseDto> CrearPresupuestoAsync(int tenantId, PresupuestoCreateDto dto)
@@ -386,30 +389,43 @@ namespace FacturacionVERIFACTU.API.Data.Services
         }
 
         public async Task<List<PresupuestoResponseDto>> ObtenerTodosAsync(
-            int tenantId,
-            string? estado = null)
+    int tenantId,
+    string? estado = null)
         {
             var query = _context.Presupuestos
-                .Include(p => p.Lineas)
-                .Include(p => p.Cliente)
-                .Where(p => p.TenantId == tenantId);
+                .Where(p => p.TenantId == tenantId)
+                .AsNoTracking();
 
             if (!string.IsNullOrEmpty(estado))
-            {
                 query = query.Where(p => p.Estado == estado);
-            }
 
-            var presupuestos = await query
+            return await query
                 .OrderByDescending(p => p.Fecha)
+                .Select(p => new PresupuestoResponseDto
+                {
+                    Id = p.Id,
+                    TenantId = p.TenantId,
+                    NumeroPresupuesto = p.Numero,
+                    SerieId = p.SerieId,
+                    Ejercicio = p.Ejercicio,
+                    FechaEmision = p.Fecha,
+                    FechaValidez = p.FechaValidez,
+                    ClienteId = p.ClienteId,
+                    ClienteNombre = p.Cliente.Nombre,
+                    Estado = p.Estado,
+                    BaseImponible = p.BaseImponible,
+                    TotalIVA = p.TotalIva,
+                    TotalRecargo = p.TotalRecargo ?? 0m,
+                    PorcentajeRetencion = p.PorcentajeRetencion ?? 0m,
+                    CuotaRetencion = p.CuotaRetencion ?? 0m,
+                    TotalConRetencion = p.TotalConRetencion ?? 0m,
+                    Total = p.Total,
+                    Observaciones = p.Observaciones,
+                    Lineas = new List<LineaPresupuestoResponseDto>(), // vacío en listado
+                    FechaCreacion = p.FechaCreacion,
+                    FechaModificacion = p.FechaModificacion
+                })
                 .ToListAsync();
-
-            var result = new List<PresupuestoResponseDto>();
-            foreach (var presupuesto in presupuestos)
-            {
-                result.Add(await MapearAResponseDto(presupuesto));
-            }
-
-            return result;
         }
 
         public async Task<bool> EliminarAsync(int tenantId, int id)
@@ -482,7 +498,20 @@ namespace FacturacionVERIFACTU.API.Data.Services
 
         private async Task<List<TipoImpuesto>> ObtenerTiposImpuestoActivosAsync(int tenantId)
         {
-            return await ObtenerTiposImpuestoVigentesAsync(tenantId, DateTime.UtcNow);
+            var fechaReferencia = DateTime.UtcNow;
+            var cacheKey = $"tipos_impuesto:{tenantId}:{fechaReferencia:yyyy-MM-dd}";
+
+            return await _cacheService.GetOrCreateAsync(
+                cacheKey,
+                async () => await _context.TiposImpuesto
+                    .Where(t => t.TenantId == tenantId
+                        && t.Activo
+                        && (t.FechaInicio == null || t.FechaInicio <= fechaReferencia)
+                        && (t.FechaFin == null || t.FechaFin >= fechaReferencia))
+                    .OrderBy(t => t.Orden)
+                    .ToListAsync(),
+                TimeSpan.FromMinutes(60)
+            ) ?? new List<TipoImpuesto>();
         }
 
         private async Task<List<TipoImpuesto>> ObtenerTiposImpuestoVigentesAsync(
