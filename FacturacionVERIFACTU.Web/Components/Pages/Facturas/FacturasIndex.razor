@@ -35,7 +35,10 @@
             }
         </div>
         <select class="notion-input-modern" style="height:32px; width:90px; font-size:13px; padding: 0 8px;"
-                @onchange="e => { ejercicioSeleccionado = int.Parse(e.Value!.ToString()!); StateHasChanged(); }">
+                @onchange="async e => {
+                ejercicioSeleccionado = int.Parse(e.Value!.ToString()!);
+                await CargarFacturasAsync();
+                                        }">
             @foreach (var año in ejerciciosDisponibles)
             {
                 <option value="@año" selected="@(año == ejercicioSeleccionado)">@año</option>
@@ -338,6 +341,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await CargarEjerciciosAsync();
         await CargarFacturasAsync();
     }
 
@@ -362,16 +366,8 @@
 
         try
         {
-            todasFacturas = await ApiService.GetAsync<List<FacturaResponseDto>>("api/facturas") ?? new();
+            todasFacturas = await ApiService.GetAsync<List<FacturaResponseDto>>($"api/facturas?ejercicio={ejercicioSeleccionado}") ?? new();
 
-            ejerciciosDisponibles = todasFacturas
-                .Select(f => f.Ejercicio)
-                .Distinct()
-                .OrderByDescending(e => e)
-                .ToList();
-
-            if (!ejerciciosDisponibles.Contains(ejercicioSeleccionado) && ejerciciosDisponibles.Any())
-                ejercicioSeleccionado = ejerciciosDisponibles.First();
         }
         catch (Exception ex)
         {
@@ -703,7 +699,13 @@
             await InvokeAsync(StateHasChanged);
         });
     }
- 
+
+    private async Task CargarEjerciciosAsync()
+    {
+        var response = await ApiService.GetAsync<List<int>>("api/ejercicios");
+        ejerciciosDisponibles = response ?? new List<int> {DateTime.Now.Year};
+        ejercicioSeleccionado = ejerciciosDisponibles.FirstOrDefault(DateTime.Now.Year);
+    }
 
    
     

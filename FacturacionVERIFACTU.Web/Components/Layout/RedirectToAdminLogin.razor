@@ -1,0 +1,9 @@
+﻿@inject NavigationManager NavManager
+
+@code {
+    protected override void OnInitialized()
+    {
+        var returnUrl = Uri.EscapeDataString(NavManager.ToBaseRelativePath(NavManager.Uri));
+        NavManager.NavigateTo($"/admin/login?returnUrl={returnUrl}", forceLoad: true);
+    }
+}

@@ -108,6 +108,26 @@ namespace FacturacionVERIFACTU.API.Data.Entities
         [Column("inscripcion")]
         public string? Inscripcion { get; set; }
 
+        // ============================================
+        // PLAN / SUSCRIPCIÓN
+        // ============================================
+        [MaxLength(20)]
+        [Column("plan")]
+        public string Plan { get; set; } = "Demo"; // Demo | Activo | Suspendido
+
+        [Column("fecha_incicio_plan")]
+        public DateTime FechaInicioPlan { get; set; } = DateTime.UtcNow;
+
+        [Column("fecha_fin_plan")]
+        public DateTime? FechaFinPlan { get; set; }
+
+        [Column("precio_mensual", TypeName ="decimal(10,2)")]
+        public decimal PrecioMensual { get; set; } = 0m;
+
+        [MaxLength(500)]
+        [Column("notas_admin")]
+        public string? NotasAdmin {  get; set; }
+
         // Relaciones
         public ICollection<Usuario> Usuarios { get; set; } = new List<Usuario>();
         public ICollection<Cliente> Clientes { get; set; } = new List<Cliente>();

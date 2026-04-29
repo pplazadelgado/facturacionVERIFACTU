@@ -5,7 +5,7 @@ using System.Xml.Linq;
 
 namespace FacturacionVERIFACTU.API.Data.Services
 {
-    public class AEATClient
+    public class AEATClient : IAEATClient
     {
         private readonly HttpClient _httpClient;
         private readonly ILogger<AEATClient> _logger;

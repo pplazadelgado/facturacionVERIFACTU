@@ -713,6 +713,44 @@ namespace FacturacionVERIFACTU.API.Migrations
                     b.ToTable("lineas_presupuesto");
                 });
 
+            modelBuilder.Entity("FacturacionVERIFACTU.API.Data.Entities.PasswordResetToken", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("token");
+
+                    b.Property<bool>("Used")
+                        .HasColumnType("boolean")
+                        .HasColumnName("used");
+
+                    b.Property<int>("UsuarioId")
+                        .HasColumnType("integer")
+                        .HasColumnName("usuario_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UsuarioId");
+
+                    b.ToTable("password_reset_tokens");
+                });
+
             modelBuilder.Entity("FacturacionVERIFACTU.API.Data.Entities.Presupuesto", b =>
                 {
                     b.Property<int>("Id")
@@ -872,6 +910,70 @@ namespace FacturacionVERIFACTU.API.Migrations
                     b.ToTable("productos");
                 });
 
+            modelBuilder.Entity("FacturacionVERIFACTU.API.Data.Entities.ReciboServicio", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Concepto")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("CreadoPorId")
+                        .HasColumnType("integer")
+                        .HasColumnName("creado_por_id");
+
+                    b.Property<DateTime>("FechaEmision")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("fecha_emision");
+
+                    b.Property<decimal>("ImporteBase")
+                        .HasColumnType("decimal(10,2)")
+                        .HasColumnName("importe_base");
+
+                    b.Property<decimal>("ImporteIva")
+                        .HasColumnType("decimal(10,2)")
+                        .HasColumnName("importe_iva");
+
+                    b.Property<decimal>("ImporteTotal")
+                        .HasColumnType("decimal(10,2)")
+                        .HasColumnName("importe_total");
+
+                    b.Property<int>("NumeroRecibo")
+                        .HasColumnType("integer")
+                        .HasColumnName("numero_recibo");
+
+                    b.Property<DateTime>("PeriodoDesde")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("periodo_dsde");
+
+                    b.Property<DateTime>("PeriodoHasta")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("periodo_hasta");
+
+                    b.Property<decimal>("PorcentajeIva")
+                        .HasColumnType("decimal(5,2)")
+                        .HasColumnName("porcentaje_iva");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NumeroRecibo")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("recibos_servicio");
+                });
+
             modelBuilder.Entity("FacturacionVERIFACTU.API.Data.Entities.RefreshToken", b =>
                 {
                     b.Property<int>("Id")
@@ -1003,6 +1105,14 @@ namespace FacturacionVERIFACTU.API.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("fecha_alta");
 
+                    b.Property<DateTime?>("FechaFinPlan")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("fecha_fin_plan");
+
+                    b.Property<DateTime>("FechaInicioPlan")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("fecha_incicio_plan");
+
                     b.Property<string>("Folio")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
@@ -1038,6 +1148,21 @@ namespace FacturacionVERIFACTU.API.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("nombre");
+
+                    b.Property<string>("NotasAdmin")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("notas_admin");
+
+                    b.Property<string>("Plan")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("plan");
+
+                    b.Property<decimal>("PrecioMensual")
+                        .HasColumnType("decimal(10,2)")
+                        .HasColumnName("precio_mensual");
 
                     b.Property<string>("Provincia")
                         .HasMaxLength(50)
@@ -1370,6 +1495,17 @@ namespace FacturacionVERIFACTU.API.Migrations
                     b.Navigation("TipoImpuesto");
                 });
 
+            modelBuilder.Entity("FacturacionVERIFACTU.API.Data.Entities.PasswordResetToken", b =>
+                {
+                    b.HasOne("FacturacionVERIFACTU.API.Data.Entities.Usuario", "Usuario")
+                        .WithMany()
+                        .HasForeignKey("UsuarioId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Usuario");
+                });
+
             modelBuilder.Entity("FacturacionVERIFACTU.API.Data.Entities.Presupuesto", b =>
                 {
                     b.HasOne("FacturacionVERIFACTU.API.Data.Entities.Cliente", "Cliente")
@@ -1413,6 +1549,17 @@ namespace FacturacionVERIFACTU.API.Migrations
                     b.Navigation("Tenant");
 
                     b.Navigation("TipoImpuesto");
+                });
+
+            modelBuilder.Entity("FacturacionVERIFACTU.API.Data.Entities.ReciboServicio", b =>
+                {
+                    b.HasOne("FacturacionVERIFACTU.API.Data.Entities.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
                 });
 
             modelBuilder.Entity("FacturacionVERIFACTU.API.Data.Entities.RefreshToken", b =>

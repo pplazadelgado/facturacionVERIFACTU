@@ -16,7 +16,7 @@ namespace FacturacionVERIFACTU.API.Data.Services
         Task<AlbaranResponseDto> ActualizarAlbaranAsync(int tenantId, int id, AlbaranUpdateDto dto);
         Task<AlbaranResponseDto> CambiarEstadoAsync(int tenantId, int id, CambiarEstadoAlbaranDto dto);
         Task<AlbaranResponseDto> ObtenerPorIdAsync(int tenantId, int id);
-        Task<List<AlbaranResponseDto>> ObtenerTodosAsync(int tenantId, string? estado = null);
+        Task<List<AlbaranResponseDto>> ObtenerTodosAsync(int tenantId, string? estado = null, int? ejercicio = null);
         Task<bool> EliminarAsync(int tenantId, int id);
         Task<AlbaranResponseDto> ConvertirDesdePresupuesto(int tenantId, int presupuestoId, ConvertirPresupuestoDto dto);
     }
@@ -82,10 +82,7 @@ namespace FacturacionVERIFACTU.API.Data.Services
 
             foreach (var linea in lineasFiltradas)
             {
-                if (linea.Cantidad <= 0)
-                {
-                    throw new InvalidOperationException("La cantidad debe ser mayor a 0.");
-                }
+
 
                 if (linea.PrecioUnitario < 0)
                 {
@@ -202,10 +199,6 @@ namespace FacturacionVERIFACTU.API.Data.Services
 
             foreach (var linea in lineasFiltradas)
             {
-                if (linea.Cantidad <= 0)
-                {
-                    throw new InvalidOperationException("La cantidad debe ser mayor a 0.");
-                }
 
                 if (linea.PrecioUnitario < 0)
                 {
@@ -351,7 +344,7 @@ namespace FacturacionVERIFACTU.API.Data.Services
             return await MapearAResponseDto(albaran);
         }
 
-        public async Task<List<AlbaranResponseDto>> ObtenerTodosAsync(int tenantId, string? estado = null)
+        public async Task<List<AlbaranResponseDto>> ObtenerTodosAsync(int tenantId, string? estado = null, int? ejercicio = null)
         {
             var query = _context.Albaranes
                 .Where(a => a.TenantId == tenantId)
@@ -359,6 +352,9 @@ namespace FacturacionVERIFACTU.API.Data.Services
 
             if (!string.IsNullOrEmpty(estado))
                 query = query.Where(a => a.Estado == estado);
+
+            if (ejercicio.HasValue)
+                query = query.Where(a => a.Ejercicio == ejercicio.Value);
 
             return await query
                 .OrderByDescending(a => a.FechaEmision)

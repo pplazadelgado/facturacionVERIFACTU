@@ -32,12 +32,17 @@
                 </button>
             }
         </div>
-        <select class="notion-input-modern" style="width:90px" @onchange="CambiarEjercicio">
+        <select class="notion-input-modern" style="height:32px; width:90px; font-size:13px; padding: 0 8px;"
+                @onchange="async e => {
+                ejercicioSeleccionado = int.Parse(e.Value!.ToString()!);
+                await CargarPresupuestosAsync();
+                                        }">
             @foreach (var año in ejerciciosDisponibles)
             {
                 <option value="@año" selected="@(año == ejercicioSeleccionado)">@año</option>
             }
         </select>
+
         <div class="notion-search-wrapper" style="border: 1px solid #edeceb; max-width: 260px; height: 32px; display: flex; align-items: center; padding: 0 8px; border-radius: 6px;">
             <i class="bi bi-search" style="font-size: 13px; color: #787774;"></i>
             <input class="notion-search-input"
@@ -293,6 +298,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await CargarEjerciciosAsync();
         await CargarPresupuestosAsync();
         await CargarSeriesFacturasAsync();
     }
@@ -305,16 +311,9 @@
 
         try
         {
-            var response = await ApiService.GetAsync<List<PresupuestoResponseDto>>("api/Presupuestos");
+            var response = await ApiService.GetAsync<List<PresupuestoResponseDto>>($"api/Presupuestos?ejercicio={ejercicioSeleccionado}");
             presupuestosTodos = response;
-            ejerciciosDisponibles = presupuestosTodos
-                .Select(p => p.Ejercicio)
-                .Distinct()
-                .OrderByDescending(e => e)
-                .ToList();
 
-            if (!ejerciciosDisponibles.Contains(ejercicioSeleccionado) && ejerciciosDisponibles.Any())
-                ejercicioSeleccionado = ejerciciosDisponibles.First();
 
             presupuestos = FiltrarPresupuestos(estado);
             seleccionados.RemoveWhere(id => presupuestosTodos.All(p => p.Id != id));
@@ -397,7 +396,6 @@
     private IEnumerable<PresupuestoResponseDto> AplicarFiltrosBase()
     {
         var resultado = presupuestosTodos.AsEnumerable();
-        resultado = resultado.Where(p => p.Ejercicio == ejercicioSeleccionado);
 
         if (!string.IsNullOrWhiteSpace(busquedaCliente))
             resultado = resultado.Where(p => p.ClienteNombre.Contains(busquedaCliente, StringComparison.OrdinalIgnoreCase));
@@ -719,6 +717,13 @@
         {
             Console.WriteLine($"Error downloadig PDF: {ex.Message}");
         }
+    }
+
+    private async Task CargarEjerciciosAsync()
+    {
+        var response = await ApiService.GetAsync<List<int>>("api/ejercicios");
+        ejerciciosDisponibles = response ?? new List<int> {DateTime.Now.Year};
+        ejercicioSeleccionado = ejerciciosDisponibles.FirstOrDefault(DateTime.Now.Year);
     }
 
     private sealed class ConversionFacturaAgrupadaModel

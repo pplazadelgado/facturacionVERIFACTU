@@ -204,6 +204,26 @@ namespace FacturacionVERIFACTU.API.Data.Services
             return cierre != null ? MapearACierreDTO(cierre) : null;
         }
 
+        /// <summary>
+        /// Devuelve los años que tienen facturas registradas para el tenant.
+        /// Si no hay ninguno, incluye el año actual como mínimo.
+        /// </summary>
+        public async Task<List<int>> ObtenerEjerciciosDisponiblesAsync(int tenantId)
+        {
+            var ejercicios = await _context.Facturas
+                .Where(f => f.TenantId == tenantId)
+                .Select(f => f.FechaEmision.Year)
+                .Distinct()
+                .OrderByDescending(a => a)
+                .ToListAsync();
+
+            // Si no hay facturas todavía, devolver el año actual como mínimo
+            if (!ejercicios.Any())
+                ejercicios.Add(DateTime.UtcNow.Year);
+
+            return ejercicios;
+        }
+
 
         ///<summary>
         ///Obtiene la entidad completa para uso interno 

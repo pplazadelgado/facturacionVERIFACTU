@@ -94,6 +94,9 @@ builder.Services.AddScoped<VERIFACTUService>();
 builder.Services.AddScoped<IPDFService, PDFService>();
 builder.Services.AddScoped<ITenantInitializationService, TenantInitializationService> ();
 builder.Services.AddScoped<IUsuarioService, UsuarioService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<SuperAdminSeederService>();
+builder.Services.AddScoped<IRecibosPdfService, RecibosPdfService>();
 
 builder.Services.AddCors(options =>
 {
@@ -183,6 +186,8 @@ builder.Services.AddHttpClient<AEATClient>(client =>
 .AddPolicyHandler(GetRetryPolicy())
 .AddPolicyHandler(Policy.TimeoutAsync<HttpResponseMessage>(TimeSpan.FromSeconds(timeoutSegundos)));
 
+builder.Services.AddTransient<IAEATClient>(sp => sp.GetRequiredService<AEATClient>());
+
 // ===== CORS =====
 builder.Services.AddCors(options =>
 {
@@ -223,7 +228,15 @@ app.UseAuthorization();     // 3️⃣ Verifica permisos
 
 app.MapControllers();
 
+// Seeed SuperAdmin
+using (var scope = app.Services.CreateScope())
+{
+    var seeder = scope.ServiceProvider.GetRequiredService<SuperAdminSeederService>();
+    await seeder.SeedAsync();
+}
+
 app.Run();
+
 
 // ============================================
 // POLÍTICAS DE POLLY
@@ -246,3 +259,6 @@ static IAsyncPolicy<HttpResponseMessage> GetRetryPolicy()
             }
         );
 }
+
+public partial class Program { }
+

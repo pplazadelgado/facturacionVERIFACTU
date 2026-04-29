@@ -16,14 +16,18 @@ namespace FacturacionVERIFACTU.API.Middleware
 
         public async Task InvokeAsync(HttpContext context, ITenantContext tenantContext)
         {
-            // Extrae tenant_id del claim JWT
-            var tenantIdClaim = context.User.FindFirst("tenant_id");
-
-            if (tenantIdClaim != null && int.TryParse(tenantIdClaim.Value, out int tenantId))
+            var path = context.Request.Path.Value ?? string.Empty;
+            // Ignorar rutas del superadmin
+            if (!path.StartsWith("/api/superadmin", StringComparison.OrdinalIgnoreCase))
             {
-                tenantContext.SetTenantId(tenantId);
-            }
+                // Extrae tenant_id del claim JWT
+                var tenantIdClaim = context.User.FindFirst("tenant_id");
 
+                if (tenantIdClaim != null && int.TryParse(tenantIdClaim.Value, out int tenantId))
+                {
+                    tenantContext.SetTenantId(tenantId);
+                }
+            }
             await _next(context);
         }
     }

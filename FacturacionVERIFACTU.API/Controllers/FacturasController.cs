@@ -41,8 +41,7 @@ namespace FacturacionVERIFACTU.API.Controllers
         public async Task<ActionResult<List<FacturaResponseDto>>> ObtenerTodos(
             [FromQuery] int? clienteId = null,
             [FromQuery] string? estado = null,
-            [FromQuery] DateTime? fechaDesde = null,
-            [FromQuery] DateTime? fechaHasta = null)
+            [FromQuery] int? ejercicio = null)
         {
             try
             {
@@ -52,7 +51,7 @@ namespace FacturacionVERIFACTU.API.Controllers
                     return Unauthorized(new { mensaje = "Tenant no encontado" });
                 }
 
-                var facturas = await _facturaService.ObtenerTodosAsync(tenantId.Value, clienteId, estado, fechaDesde, fechaHasta);
+                var facturas = await _facturaService.ObtenerTodosAsync(tenantId.Value, clienteId, estado, ejercicio);
 
                 return Ok(facturas);
             }

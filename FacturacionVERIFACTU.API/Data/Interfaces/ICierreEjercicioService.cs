@@ -22,5 +22,6 @@ namespace FacturacionVERIFACTU.API.Data.Interfaces
 
         Task<PaginatedResponseDto<CierreEjercicioDTO>> ObtenerHistorialCierresDTO(
             int tenantId, int page, int pageSize, int? ejercicio = null);
+        Task<List<int>> ObtenerEjerciciosDisponiblesAsync(int tenantId);
     }
 }

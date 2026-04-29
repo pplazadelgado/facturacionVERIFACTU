@@ -1,0 +1,568 @@
+﻿@page "/admin/empresas/{Id:int}"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "SuperAdmin")]
+@layout AdminLayout
+@inject IApiService ApiService
+@inject NavigationManager Nav
+@inject ConfirmDialogService ConfirmDialog
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+<PageTitle>Detalle Empresa — SuperAdmin</PageTitle>
+
+@if (isLoading)
+{
+    <div class="notion-loading">
+        <div class="spinner-modern"></div>
+        <span>Cargando empresa...</span>
+    </div>
+}
+else if (empresa != null)
+{
+    <div class="notion-breadcrumb">
+        <a href="/admin/empresas">Empresas</a> / @empresa.Nombre
+    </div>
+
+    @* Cabecera *@
+    <div class="notion-header" style="margin-top: 12px;">
+        <div class="header-main">
+            <span class="header-icon">
+                <i class="bi bi-building"></i>
+            </span>
+            <div>
+                <h1>@empresa.Nombre</h1>
+                <div style="display: flex; gap: 8px; align-items: center; margin-top: 4px;">
+                    @GetPlanBadge(empresa.Plan)
+                    <span style="color: var(--muted); font-size: 13px;">NIF: @empresa.NIF</span>
+                </div>
+            </div>
+        </div>
+
+        @* Acciones principales *@
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button class="btn-modern-secondary" @onclick="Impersonar">
+                <i class="bi bi-person-badge"></i> Entrar como empresa
+            </button>
+            <button class="btn-modern-secondary" @onclick="() => mostrarModalRecibo = true">
+                <i class="bi bi-receipt"></i> Generar recibo
+            </button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(mensajeExito))
+    {
+        <div class="alert alert-success" style="font-size: 13px; border-radius: 8px; margin-bottom: 16px; padding: 12px; border: none; background: #dcfce7; color: #166534;">
+            <i class="bi bi-check-circle-fill"></i> @mensajeExito
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(mensajeError))
+    {
+        <div class="alert alert-danger" style="font-size: 13px; border-radius: 8px; margin-bottom: 16px; padding: 12px; border: none; background: #fff0f0; color: #e03e3e;">
+            <i class="bi bi-exclamation-circle-fill"></i> @mensajeError
+        </div>
+    }
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+
+    @* KPIs *@
+    <div class="ui-card" style="padding: 20px;">
+        <h3 style="margin: 0 0 16px 0; font-size: 15px; font-weight: 700;">
+            Métricas de uso
+        </h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div>
+                <div style="font-size: 11px; color: var(--muted); text-transform: uppercase; font-weight: 600;">Facturas emitidas</div>
+                <div style="font-size: 22px; font-weight: 800;">@empresa.TotalFacturas</div>
+            </div>
+            <div>
+                <div style="font-size: 11px; color: var(--muted); text-transform: uppercase; font-weight: 600;">Volumen facturado</div>
+                <div style="font-size: 22px; font-weight: 800;">@empresa.VolumenFacturado.ToString("C")</div>
+            </div>
+            <div>
+                <div style="font-size: 11px; color: var(--muted); text-transform: uppercase; font-weight: 600;">Usuarios activos</div>
+                <div style="font-size: 22px; font-weight: 800;">@empresa.UsuariosActivos</div>
+            </div>
+            <div>
+                <div style="font-size: 11px; color: var(--muted); text-transform: uppercase; font-weight: 600;">Último acceso</div>
+                <div style="font-size: 14px; font-weight: 600;">
+                    @(empresa.UltimoAcceso.HasValue
+                                        ? empresa.UltimoAcceso.Value.ToLocalTime().ToString("dd/MM/yy HH:mm")
+                                        : "Nunca")
+                </div>
+            </div>
+        </div>
+    </div>
+
+        @* Gestión del plan *@
+        <div class="ui-card" style="padding: 20px;">
+            <h3 style="margin: 0 0 16px 0; font-size: 15px; font-weight: 700;">
+                Gestión del plan
+            </h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <div class="notion-input-group">
+                    <label class="notion-label">Plan</label>
+                    <select class="notion-input-modern" @bind="planForm.Plan">
+                        <option value="Demo">Demo</option>
+                        <option value="Activo">Activo</option>
+                        <option value="Suspendido">Suspendido</option>
+                    </select>
+                </div>
+                <div class="notion-input-group">
+                    <label class="notion-label">Precio mensual (€)</label>
+                    <input type="number" class="notion-input-modern"
+                           @bind="planForm.PrecioMensual" step="0.01" min="0" />
+                </div>
+                <div class="notion-input-group">
+                    <label class="notion-label">Inicio plan</label>
+                    <input type="date" class="notion-input-modern"
+                           @bind="planForm.FechaInicioPlan" />
+                </div>
+                <div class="notion-input-group">
+                    <label class="notion-label">Fin plan</label>
+                    <input type="date" class="notion-input-modern"
+                           @bind="planForm.FechaFinPlan" />
+                </div>
+                <div class="notion-input-group" style="grid-column: span 2;">
+                    <label class="notion-label">Notas internas</label>
+                    <textarea class="notion-input-modern" rows="2"
+                              @bind="planForm.NotasAdmin"
+                              placeholder="Solo visibles para el superadmin"></textarea>
+                </div>
+            </div>
+            <div style="display: flex; gap: 8px; margin-top: 12px;">
+                <button class="btn-modern" @onclick="GuardarPlan" disabled="@isSaving">
+                @if (isSaving)
+                    {
+                        <span class="spinner-border spinner-border-sm"></span>
+                    }
+                    else
+                    {
+                        <span>Guardar plan</span>
+                    }
+                </button>
+                <button class="btn-modern-secondary" @onclick="ExtenderDemo30Dias">
+                    <i class="bi bi-calendar-plus"></i> +30 días demo
+                </button>
+                @if (empresa.Activo)
+                {
+                    <button class="btn-modern-secondary"
+                            style="background: #dc2626 !important; border-color: #dc2626 !important;"
+                            @onclick="SuspenderEmpresa">
+                        <i class="bi bi-slash-circle"></i> Suspender
+                    </button>
+                }
+                else
+                {
+                    <button class="btn-modern-secondary" @onclick="ActivarEmpresa">
+                        <i class="bi bi-check-circle"></i> Activar
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+
+    @* Actividad mensual *@
+    @if (empresa.ActividadMensual.Any())
+    {
+        <div class="ui-card" style="padding: 20px; margin-bottom: 16px;">
+            <h3 style="margin: 0 0 16px 0; font-size: 15px; font-weight: 700;">
+                Actividad últimos 6 meses
+            </h3>
+            <div class="mini-bars">
+                @{
+                    var maxFacturas = empresa.ActividadMensual.Max(a => a.Facturas);
+                }
+                @foreach (var mes in empresa.ActividadMensual)
+                {
+                    var pct = maxFacturas > 0 ? (double)mes.Facturas / maxFacturas * 100 : 0;
+                    <div class="mini-bar-row">
+                        <div class="mini-bar-label">@MesCorto(mes.Mes)</div>
+                        <div class="mini-bar-track">
+                            <div class="mini-bar-fill" style="width:@pct.ToString("0.##")%"></div>
+                        </div>
+                        <div class="mini-bar-value">
+                            @mes.Facturas fact. · @mes.Volumen.ToString("C")
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    @* Recibos *@
+    <div class="ui-card" style="padding: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <h3 style="margin: 0; font-size: 15px; font-weight: 700;">Recibos de servicio</h3>
+            <button class="btn-modern-secondary"
+                    @onclick="() => mostrarModalRecibo = true">
+                <i class="bi bi-plus-lg"></i> Nuevo recibo
+            </button>
+        </div>
+
+        @if (!empresa.Recibos.Any())
+        {
+            <p style="color: var(--muted); font-size: 13px;">No hay recibos generados aún.</p>
+        }
+        else
+        {
+            <div class="notion-table-wrapper">
+                <table class="notion-table">
+                    <thead>
+                        <tr>
+                            <th>Nº</th>
+                            <th>Concepto</th>
+                            <th>Período</th>
+                            <th style="text-align: right;">Total</th>
+                            <th>Fecha</th>
+                            <th style="text-align: right;">PDF</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var recibo in empresa.Recibos)
+                        {
+                            <tr>
+                                <td><span class="notion-code-text">@recibo.NumeroRecibo.ToString("D4")</span></td>
+                                <td>@recibo.Concepto</td>
+                                <td style="font-size: 12px; color: var(--muted);">
+                                    @recibo.PeriodoDesde.ToString("dd/MM/yyyy") —
+                                    @recibo.PeriodoHasta.ToString("dd/MM/yyyy")
+                                </td>
+                                <td style="text-align: right; font-weight: 700;">
+                                    @recibo.ImporteTotal.ToString("C")
+                                </td>
+                                <td style="color: var(--muted); font-size: 13px;">
+                                    @recibo.FechaEmision.ToString("dd/MM/yyyy")
+                                </td>
+                                <td style="text-align: right;">
+                                    <button class="notion-action-btn"
+                                            title="Descargar PDF"
+                                            @onclick="() => DescargarReciboPdf(recibo.Id)">
+                                        <i class="bi bi-file-pdf"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}
+
+@* Modal nuevo recibo *@
+@if (mostrarModalRecibo)
+{
+    <div class="notion-modal-overlay" @onclick="() => mostrarModalRecibo = false">
+        <div class="notion-modal" @onclick:stopPropagation="true">
+            <div class="notion-modal-header">
+                <h3>Nuevo recibo de servicio</h3>
+                <button class="notion-modal-close"
+                        @onclick="() => mostrarModalRecibo = false">
+                    ×
+                </button>
+            </div>
+            <div class="notion-modal-body">
+                <div style="display: grid; gap: 12px;">
+                    <div class="notion-input-group">
+                        <label class="notion-label">Concepto *</label>
+                        <input class="notion-input-modern" @bind="reciboForm.Concepto"
+                               placeholder="Ej: Suscripción mensual FacturacionVERIFACTU — Enero 2025" />
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div class="notion-input-group">
+                            <label class="notion-label">Período desde *</label>
+                            <input type="date" class="notion-input-modern"
+                                   @bind="reciboForm.PeriodoDesde" />
+                        </div>
+                        <div class="notion-input-group">
+                            <label class="notion-label">Período hasta *</label>
+                            <input type="date" class="notion-input-modern"
+                                   @bind="reciboForm.PeriodoHasta" />
+                        </div>
+                        <div class="notion-input-group">
+                            <label class="notion-label">Importe base (€) *</label>
+                            <input type="number" class="notion-input-modern"
+                                   @bind="reciboForm.ImporteBase"
+                                   step="0.01" min="0" />
+                        </div>
+                        <div class="notion-input-group">
+                            <label class="notion-label">IVA (%)</label>
+                            <input type="number" class="notion-input-modern"
+                                   @bind="reciboForm.PorcentajeIVA"
+                                   step="1" min="0" max="100" />
+                        </div>
+                    </div>
+                    @* Preview total *@
+                    <div style="background: #f8fafc; border-radius: 8px; padding: 12px; text-align: right;">
+                        <span style="color: var(--muted); font-size: 13px;">Total estimado: </span>
+                        <strong style="font-size: 16px; color: #1e3a8a;">
+                            @((reciboForm.ImporteBase * (1 + reciboForm.PorcentajeIVA / 100)).ToString("C"))
+                        </strong>
+                    </div>
+                </div>
+            </div>
+            <div class="notion-modal-footer">
+                <button class="btn-modern-secondary"
+                        @onclick="() => mostrarModalRecibo = false">
+                    Cancelar
+                </button>
+                <button class="btn-modern" @onclick="CrearRecibo" disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                        <span class="spinner-border spinner-border-sm"></span>
+                    }
+                    else
+                    {
+                        <span><i class="bi bi-receipt"></i> Crear recibo</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private TenantDetalleDto? empresa;
+    private bool isLoading = true;
+    private bool isSaving = true;
+    private bool mostrarModalRecibo;
+    private string mensajeExito = string.Empty;
+    private string mensajeError = string.Empty;
+
+    private PlanFormModel planForm = new();
+    private ReciboFormModel reciboForm = new();
+
+    protected override async Task OnInitializedAsync() => await CargarAsync();
+
+    private async Task CargarAsync()
+    {
+        isLoading = true;
+        try
+        {
+            empresa = await ApiService.GetAsync<TenantDetalleDto>($"api/admin/empresas/{Id}");
+            if(empresa != null)
+            {
+                planForm = new PlanFormModel
+                    {
+                        Plan = empresa.Plan,
+                        PrecioMensual = empresa.PrecioMensual,
+                        FechaInicioPlan = empresa.FechaInicioPlan,
+                        FechaFinPlan = empresa.FechaFinPlan,
+                        NotasAdmin = empresa.NotasAdmin
+                    };
+                //Concepto por defecto del recibo
+                reciboForm.Concepto = $"Suscripcion mensual facturacionVERIFACTU - {DateTime.Now:MMMM yyyy}";
+                reciboForm.ImporteBase = empresa.PrecioMensual;
+                reciboForm.PeriodoDesde = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+                reciboForm.PeriodoHasta = reciboForm.PeriodoDesde.AddMonths(1).AddDays(-1);
+            }
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task GuardarPlan()
+    {
+        isSaving = true;
+        mensajeExito = mensajeError = string.Empty;
+        try
+        {
+            var dto = new
+            {
+                planForm.Plan,
+                planForm.FechaInicioPlan,
+                planForm.FechaFinPlan,
+                planForm.PrecioMensual,
+                planForm.NotasAdmin
+            };
+            await ApiService.PatchAsync<object, object>($"api/admin/empresas/{Id}/plan", dto);
+        }
+        catch(Exception ex)
+        {
+            mensajeError = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task ExtenderDemo30Dias()
+    {
+        isSaving = true;
+        mensajeExito = mensajeError = string.Empty;
+        try
+        {
+            await ApiService.PostAsync<object, object>(
+                $"api/admim/empresas{Id}/extender-demo",
+                new { Dias = 30 });
+            mensajeExito = "Demo extendida 30 dias";
+            await CargarAsync();
+        }
+        catch(Exception ex)
+        {
+            mensajeError = $"Error: {ex.Message}";
+        }
+    }
+
+    private void SuspenderEmpresa()
+    {
+        ConfirmDialog.Show(
+            new ConfirmDialogOptions(
+                "¿Suspender empresa?",
+                $"Se bloqueara el acceso a {empresa.Nombre}. Puedes reactivarla en cualquier momemto",
+                "Suspender", "Cancelar"),
+             async () =>
+             {
+                 await ApiService.PatchAsync<object, object>(
+                     $"api/admin/{Id}/estado",
+                     new { Activo = false });
+                 mensajeExito = "Empresa suspendida";
+                 await CargarAsync();
+                 await InvokeAsync(StateHasChanged);
+             });
+    }
+
+    private void ActivarEmpresa()
+    {
+        ConfirmDialog.Show(
+            new ConfirmDialogOptions("¿Activar empresa?",
+                $"Se restaurará el acceso a {empresa?.Nombre}.",
+                "Activar", "Cancelar"),
+            async () =>
+            {
+                await ApiService.PatchAsync<object, object>(
+                    $"api/admin/empresas/{Id}/estado",
+                    new { Activo = true });
+                mensajeExito = "Empresa activada";
+                await CargarAsync();
+                await InvokeAsync(StateHasChanged);
+            });
+    }
+
+    private async Task Impersonar()
+    {
+        try
+        {
+            var result = await ApiService.PostAsync<object, ImpersonacionesResponseDto>(
+                $"api/empresas/{Id}/impersonar", new { });
+
+            if(result?.Token != null)
+            {
+                //Abrir en nueva pestaña con el token en la URL como hash
+                await JS.InvokeVoidAsync("open",
+                   $"/?impersonate={result.Token}", "_blank");
+            }
+        }
+        catch(Exception ex)
+        {
+            mensajeError = $"Error al impersonar: {ex.Message}";
+        }
+    }
+
+    private async Task CrearRecibo()
+    {
+        if(string.IsNullOrWhiteSpace(reciboForm.Concepto) || reciboForm.ImporteBase <= 0)
+        {
+            mensajeError = "Rellena todos los campos del recibo";
+        }
+
+        isSaving = true;
+        mensajeExito = mensajeError = string.Empty;
+        try
+        {
+            var dto = new
+            {
+                reciboForm.Concepto,
+                reciboForm.PeriodoDesde,
+                reciboForm.PeriodoHasta,
+                reciboForm.ImporteBase,
+                reciboForm.PorcentajeIVA
+            };
+            await ApiService.PostAsync<object, object>($"api/admin/empresas/{Id}/recibos", dto);
+            mostrarModalRecibo = false;
+            mensajeExito = "Recibo creado correctamente";
+            await CargarAsync();
+        }
+        catch(Exception ex)
+        {
+            mensajeError = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task DescargarReciboPdf(int reciboId)
+    {
+        try
+        {
+            var response = await Http.GetAsync($"api/admin/recibos/{reciboId}/pdf");
+            if (!response.IsSuccessStatusCode) return;
+            var bytes = await response.Content.ReadAsByteArrayAsync();
+            var base64 = Convert.ToBase64String(bytes);
+            await JS.InvokeVoidAsync("downloadFile", $"Recibo-{reciboId}.pdf", base64);
+        }
+        catch(Exception ex)
+        {
+            mensajeError = $"Error al descargar PDF: {ex.Message}";
+        }
+    }
+
+    private static string MesCorto(int mes) => mes switch
+    {
+        1 => "Ene",
+        2 => "Feb",
+        3 => "Mar",
+        4 => "Abr",
+        5 => "May",
+        6 => "Jun",
+        7 => "Jul",
+        8 => "Ago",
+        9 => "Sep",
+        10 => "Oct",
+        11 => "Nov",
+        12 => "Dic",
+        _ => "-"
+    };
+
+    private RenderFragment GetPlanBadge(string plan) => plan switch
+    {
+        "Demo" => @<span class="notion-badge badge-warning">Demo</span>,
+        "Activo" => @<span class="notion-badge badge-success">Activo</span>,
+        "Suspendido" => @<span class="notion-badge badge-error">Suspendido</span>,
+        _ => @<span class="notion-badge badge-default">@plan</span>
+    };
+
+    private class PlanFormModel()
+    {
+        public string Plan { get; set; } = "Demo";
+        public decimal PrecioMensual{ get; set;}
+        public DateTime FechaInicioPlan { get; set; } = DateTime.Today;
+        public DateTime? FechaFinPlan { get; set; }
+        public string? NotasAdmin{ get; set; }
+    }
+
+    private class ReciboFormModel
+    {
+        public string Concepto { get; set; } = string.Empty;
+        public DateTime PeriodoDesde { get; set; } = DateTime.Today;
+        public DateTime PeriodoHasta { get; set; } = DateTime.Today.AddMonths(1).AddDays(-1);
+        public decimal ImporteBase { get; set; }
+        public decimal PorcentajeIVA { get; set; } = 21m;
+    }
+
+    private class ImpersonacionesResponseDto
+    {
+        public string Token { get; set; } = string.Empty;
+        public string Empresa { get; set; } = string.Empty;
+        public string Usuario { get; set; } = string.Empty;
+        public DateTime Expira{ get; set; }
+    }
+}

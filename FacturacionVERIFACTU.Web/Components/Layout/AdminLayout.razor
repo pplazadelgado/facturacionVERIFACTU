@@ -1,0 +1,47 @@
+﻿@inherits LayoutComponentBase
+@implements IDisposable
+@inject ConfirmDialogService Confirm
+@inject IAuthService AuthService
+@inject NavigationManager Nav
+
+<div class="notion-app">
+    <AuthorizeView Roles="SuperAdmin">
+        <Authorized>
+            <aside class="notion-sidebar">
+                <AdminNavMenu/>
+            </aside>
+            <main class="notion-main">
+                <div class="notion-content">
+                    @Body
+                </div>
+            </main>
+        </Authorized>
+        <NotAuthorized>
+            <RedirectToAdminLogin/>
+        </NotAuthorized>
+    </AuthorizeView>
+</div>
+
+<ConfirmDialog IsVisible="@Confirm.IsVisible"
+    IsBusy="@Confirm.IsBusy"
+    Title="@Confirm.Title"
+    Message="@Confirm.Message"
+    ConfirmButtonText="@Confirm.ConfirmButtonText"
+    CancelButtonText="@Confirm.CancelButtonText"
+    ErrorMessage="@Confirm.ErrorMessage"
+    OnConfirm="@Confirm.ConfirmAsync"
+    OnCancel="@Confirm.Cancel"/>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Confirm.OnChange += StateHasChanged;
+    }
+
+    public void Dispose()
+    {
+        Confirm.OnChange -= StateHasChanged;
+    }
+
+
+}

@@ -15,7 +15,7 @@ namespace FacturacionVERIFACTU.API.Data.Services
         Task<PresupuestoResponseDto> ActualizarPresupuestoAsync(int tenantId, int id, PresupuestoUpdateDto dto);
         Task<PresupuestoResponseDto> CambiarEstadoAsync(int tenantId, int id, CambiarEstadoPresupuestoDto dto);
         Task<PresupuestoResponseDto> ObtenerPorIdAsync(int tenantId, int id);
-        Task<List<PresupuestoResponseDto>> ObtenerTodosAsync(int tenantId, string? estado = null);
+        Task<List<PresupuestoResponseDto>> ObtenerTodosAsync(int tenantId, string? estado = null, int? ejercicio = null);
         Task<bool> EliminarAsync(int tenantId, int id);
     }
 
@@ -51,11 +51,7 @@ namespace FacturacionVERIFACTU.API.Data.Services
                 .Where(l => !(l.ArticuloId == null && string.IsNullOrWhiteSpace(l.Descripcion)))
                 .ToList();
 
-            if (lineasFiltradas.Any(l => l.Cantidad <= 0 || l.PrecioUnitario < 0))
-            {
-                throw new InvalidOperationException(
-                    "Línea de presupuesto inválida: la cantidad debe ser mayor que 0 y el precio unitario no puede ser negativo.");
-            }
+
 
             // Validar productos
             var lineasProductoIds = lineasFiltradas
@@ -218,10 +214,10 @@ namespace FacturacionVERIFACTU.API.Data.Services
                 .Where(l => !(l.ArticuloId == null && string.IsNullOrWhiteSpace(l.Descripcion)))
                 .ToList();
 
-            if (lineasFiltradas.Any(l => l.Cantidad <= 0 || l.PrecioUnitario < 0))
+            if (lineasFiltradas.Any(l => l.PrecioUnitario < 0))
             {
                 throw new InvalidOperationException(
-                    "Línea de presupuesto inválida: la cantidad debe ser mayor que 0 y el precio unitario no puede ser negativo.");
+                    "Línea de presupuesto inválida: El precio unitario no puede ser negativo.");
             }
 
             var lineasProductoIds = lineasFiltradas
@@ -389,44 +385,48 @@ namespace FacturacionVERIFACTU.API.Data.Services
         }
 
         public async Task<List<PresupuestoResponseDto>> ObtenerTodosAsync(
-    int tenantId,
-    string? estado = null)
-        {
-            var query = _context.Presupuestos
-                .Where(p => p.TenantId == tenantId)
-                .AsNoTracking();
-
-            if (!string.IsNullOrEmpty(estado))
-                query = query.Where(p => p.Estado == estado);
-
-            return await query
-                .OrderByDescending(p => p.Fecha)
-                .Select(p => new PresupuestoResponseDto
+            int tenantId,
+            string? estado = null,
+            int? ejercicio = null)
                 {
-                    Id = p.Id,
-                    TenantId = p.TenantId,
-                    NumeroPresupuesto = p.Numero,
-                    SerieId = p.SerieId,
-                    Ejercicio = p.Ejercicio,
-                    FechaEmision = p.Fecha,
-                    FechaValidez = p.FechaValidez,
-                    ClienteId = p.ClienteId,
-                    ClienteNombre = p.Cliente.Nombre,
-                    Estado = p.Estado,
-                    BaseImponible = p.BaseImponible,
-                    TotalIVA = p.TotalIva,
-                    TotalRecargo = p.TotalRecargo ?? 0m,
-                    PorcentajeRetencion = p.PorcentajeRetencion ?? 0m,
-                    CuotaRetencion = p.CuotaRetencion ?? 0m,
-                    TotalConRetencion = p.TotalConRetencion ?? 0m,
-                    Total = p.Total,
-                    Observaciones = p.Observaciones,
-                    Lineas = new List<LineaPresupuestoResponseDto>(), // vacío en listado
-                    FechaCreacion = p.FechaCreacion,
-                    FechaModificacion = p.FechaModificacion
-                })
-                .ToListAsync();
-        }
+                    var query = _context.Presupuestos
+                        .Where(p => p.TenantId == tenantId)
+                        .AsNoTracking();
+
+                    if (!string.IsNullOrEmpty(estado))
+                        query = query.Where(p => p.Estado == estado);
+
+            if (ejercicio.HasValue)
+                query = query.Where(p => p.Ejercicio == ejercicio.Value);
+
+                    return await query
+                        .OrderByDescending(p => p.Fecha)
+                        .Select(p => new PresupuestoResponseDto
+                        {
+                            Id = p.Id,
+                            TenantId = p.TenantId,
+                            NumeroPresupuesto = p.Numero,
+                            SerieId = p.SerieId,
+                            Ejercicio = p.Ejercicio,
+                            FechaEmision = p.Fecha,
+                            FechaValidez = p.FechaValidez,
+                            ClienteId = p.ClienteId,
+                            ClienteNombre = p.Cliente.Nombre,
+                            Estado = p.Estado,
+                            BaseImponible = p.BaseImponible,
+                            TotalIVA = p.TotalIva,
+                            TotalRecargo = p.TotalRecargo ?? 0m,
+                            PorcentajeRetencion = p.PorcentajeRetencion ?? 0m,
+                            CuotaRetencion = p.CuotaRetencion ?? 0m,
+                            TotalConRetencion = p.TotalConRetencion ?? 0m,
+                            Total = p.Total,
+                            Observaciones = p.Observaciones,
+                            Lineas = new List<LineaPresupuestoResponseDto>(), // vacío en listado
+                            FechaCreacion = p.FechaCreacion,
+                            FechaModificacion = p.FechaModificacion
+                        })
+                        .ToListAsync();
+                }
 
         public async Task<bool> EliminarAsync(int tenantId, int id)
         {

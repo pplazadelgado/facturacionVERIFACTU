@@ -93,7 +93,7 @@
 
                 <div class="notion-input-group">
                     <label class="notion-label">Fecha emisión</label>
-                    <InputDate @bind-Value="presupuesto.FechaEmision" class="notion-input-modern" disabled="@(!EsEditable)" />
+                    <InputDate @bind-Value="presupuesto.FechaEmision" class="notion-input-modern" disabled="@(!EsEditable)" @bind-Value:after="CargarSeriesPresupuestosAsync" />
                 </div>
 
                 <div class="notion-input-group">
@@ -220,11 +220,13 @@
                                            inputmode="decimal"
                                            class="notion-input-modern"
                                            step="0.01"
-                                           value="@lineaActual.Cantidad.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)"
+                                           value="@(lineaActual.Cantidad?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) ?? "")"
                                            @onchange="@(e => {
                                            var raw = (e.Value?.ToString() ?? "").Replace(',', '.');
-                                           if (decimal.TryParse(raw, System.Globalization.NumberStyles.Any,
-                                               System.Globalization.CultureInfo.InvariantCulture, out var v) && v > 0)
+                                           if (string.IsNullOrWhiteSpace(raw))
+                                               lineaActual.Cantidad = null;
+                                           else if (decimal.TryParse(raw, System.Globalization.NumberStyles.Any,
+                                               System.Globalization.CultureInfo.InvariantCulture, out var v) && v != 0)
                                                lineaActual.Cantidad = v;
                                            StateHasChanged();
                                        })"
@@ -795,8 +797,9 @@
     {
         try
         {
+            var ejercicio = presupuesto.FechaEmision == default ? DateTime.Today.Year : presupuesto.FechaEmision.Year;
             var response = await ApiService.GetAsync<PaginatedResponseDto<SerieDto>>(
-           "api/series?page=1&pageSize=100&tipoDocumento=PRESUPUESTO&soloActivas=true");
+                 $"api/series?page=1&pageSize=100&tipoDocumento=PRESUPUESTO&soloActivas=true&ejercicio={ejercicio}");
             SeriesPresupuestos = response?.Items ?? new List<SerieDto>();
         }
         catch (Exception)
@@ -997,7 +1000,7 @@
         }
 
         presupuesto.Lineas = presupuesto.Lineas
-            .Where(linea => !string.IsNullOrWhiteSpace(linea.Descripcion) && linea.Cantidad > 0)
+            .Where(linea => !string.IsNullOrWhiteSpace(linea.Descripcion))
             .ToList();
 
         if (presupuesto.Lineas.Count == 0)
@@ -1346,7 +1349,7 @@
         var linea = new LineaPresupuestoViewModel
         {
             Descripcion = producto.Descripcion,
-            Cantidad = 1,
+            Cantidad = null,
             PrecioUnitario = producto.PrecioUnitario,
             PorcentajeDescuento = 0,
             IVA = producto.PorcentajeIva,
@@ -1387,7 +1390,7 @@
             Id = linea.Id,
             TipoImpuestoId = linea.TipoImpuestoId,
             Descripcion = linea.Descripcion,
-            Cantidad = linea.Cantidad,
+            Cantidad = linea.Cantidad ?? 0m,
             PrecioUnitario = linea.PrecioUnitario,
             PorcentajeDescuento = linea.PorcentajeDescuento,
             IVA = linea.IVA,
@@ -1398,7 +1401,7 @@
 
     private decimal CalcularSubtotal(LineaPresupuestoViewModel linea)
     {
-        return linea.Cantidad * linea.PrecioUnitario;
+        return (linea.Cantidad ?? 0) * linea.PrecioUnitario;
     }
 
     private decimal CalcularDescuento(LineaPresupuestoViewModel linea)
@@ -1597,8 +1600,7 @@
         [Required]
         public string Descripcion { get; set; } = string.Empty;
 
-        [Range(0.01, double.MaxValue)]
-        public decimal Cantidad { get; set; } = 1;
+        public decimal? Cantidad { get; set; }
 
         [Range(0, double.MaxValue)]
         public decimal PrecioUnitario { get; set; }

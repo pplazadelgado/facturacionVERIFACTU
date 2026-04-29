@@ -16,12 +16,12 @@ namespace FacturacionVERIFACTU.API.Services
     public class VERIFACTUService
     {
         private readonly ApplicationDbContext _context;
-        private readonly AEATClient _aeatClient;
+        private readonly IAEATClient _aeatClient;
         private readonly ILogger<VERIFACTUService> _logger;
 
         public VERIFACTUService(
             ApplicationDbContext context,
-            AEATClient aeatClient,
+            IAEATClient aeatClient,
             ILogger<VERIFACTUService> logger)
         {
             _context = context;

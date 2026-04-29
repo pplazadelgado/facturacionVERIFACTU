@@ -77,8 +77,6 @@ public class LineaPresupuestoDto
     [StringLength(500)]
     public string Descripcion { get; set; } = string.Empty;
 
-    [Required]
-    [Range(0.01, double.MaxValue)]
     public decimal Cantidad { get; set; }
 
     [Required]

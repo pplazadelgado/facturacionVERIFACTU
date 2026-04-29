@@ -38,7 +38,8 @@ namespace FacturacionVERIFACTU.API.Controllers
         [HttpGet]
         [ProducesResponseType(typeof(List<PresupuestoResponseDto>), StatusCodes.Status200OK)]
         public async Task<ActionResult<List<PresupuestoResponseDto>>> ObtenerTodos(
-            [FromQuery] string? estado = null)
+            [FromQuery] string? estado = null,
+            [FromQuery] int? ejercicio = null)
         {
             try
             {
@@ -48,7 +49,7 @@ namespace FacturacionVERIFACTU.API.Controllers
                     return Unauthorized(new { message = "Tenant no identificado" });
                 }
 
-                var presupuestos = await _presupuestoService.ObtenerTodosAsync(tenantId.Value, estado);
+                var presupuestos = await _presupuestoService.ObtenerTodosAsync(tenantId.Value, estado, ejercicio);
                 return Ok(presupuestos);
             }
             catch (Exception ex)

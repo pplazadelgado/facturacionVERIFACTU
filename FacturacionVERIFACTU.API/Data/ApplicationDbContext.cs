@@ -1,5 +1,6 @@
 ﻿using API.Data.Entities;
 using FacturacionVERIFACTU.API.Data.Entities;
+using FacturacionVERIFACTU.API.DTOs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.OpenApi.Validations;
@@ -28,6 +29,9 @@ namespace FacturacionVERIFACTU.API.Data
         public DbSet<LineaFactura> LineasFacturas => Set<LineaFactura>();
         public DbSet<TipoImpuesto> TiposImpuesto => Set<TipoImpuesto>();
         public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+        public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
+        public DbSet<ReciboServicio> RecibosServicio => Set<ReciboServicio>();
+       
 
 
         public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
@@ -131,6 +135,16 @@ namespace FacturacionVERIFACTU.API.Data
 
             modelBuilder.Entity<Factura>()
                 .HasIndex(f => new { f.TenantId, f.Numero })
+                .IsUnique();
+
+            modelBuilder.Entity<ReciboServicio>()
+                .HasOne(r => r.Tenant)
+                .WithMany()
+                .HasForeignKey(r => r.TenantId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<ReciboServicio>()
+                .HasIndex(r => r.NumeroRecibo)
                 .IsUnique();
 
             // ==========================================

@@ -5,6 +5,7 @@ using FacturacionVERIFACTU.API.DTOs;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using FacturacionVERIFACTU.API.Data.Interfaces;
+using System.ComponentModel;
 
 
 namespace FacturacionVERIFACTU.API.Controllers
@@ -18,19 +19,25 @@ namespace FacturacionVERIFACTU.API.Controllers
         private readonly IJwtService _jwtService;
         private readonly ITenantInitializationService _tenantInitService;
         private readonly ILogger<AuthController> _logger;
-
+        private readonly IEmailService _emailService;
+        private readonly IConfiguration _configuration;
         public AuthController(
             ApplicationDbContext context,
             IHashService hasService,
-            IJwtService jwtService, 
+            IJwtService jwtService,
             ITenantInitializationService tenantIntiService,
-            ILogger<AuthController> logger)
+            ILogger<AuthController> logger,
+            IEmailService emailService
+,
+            IConfiguration configuration)
         {
             _context = context;
             _hashService = hasService;
             _jwtService = jwtService;
             _tenantInitService = tenantIntiService;
             _logger = logger;
+            _emailService = emailService;
+            _configuration = configuration;
         }
 
         ///<summary>
@@ -190,6 +197,8 @@ namespace FacturacionVERIFACTU.API.Controllers
                 CreatedAt = DateTime.UtcNow
             };
 
+            usuario.UltimoAcceso = DateTime.UtcNow;
+
             _context.RefreshTokens.Add(tokenEntity);
             await _context.SaveChangesAsync();
 
@@ -280,6 +289,139 @@ namespace FacturacionVERIFACTU.API.Controllers
                 }
             });
         }
+
+        /// <summary>
+        /// POST /api/auth/forgot-password
+        /// Solicita el reseteo de contraseña. Siempre devuelve 200 para no
+        /// revelar si el email existe o no en el sistema.
+        /// </summary>
+        [HttpPost("forgot-password")]
+        public async Task<ActionResult<ForgotPasswordResponse>> ForgotPassword(
+            [FromBody] ForgotPasswordRequest request)
+        {
+            try
+            {
+                var usuario = await _context.Usuarios
+                    .FirstOrDefaultAsync(u => u.Email == request.Email && u.Activo);
+
+                //Respuesta generica siempre
+                var respuestaGenerica = new ForgotPasswordResponse
+                {
+                    Success = true,
+                    Message = "Si el email esta registrado, recibiras un enlace praa restablecer tu contraseña"
+                };
+
+                if(usuario == null)
+                {
+                    _logger.LogInformation(
+                        "Solicitudo de recuperar contraseña no registrada: {Email}", request.Email);
+                    return Ok(respuestaGenerica);
+                }
+
+                //Invaliar token anteriores del usuario
+                var tokenAnteriores = await _context.PasswordResetTokens
+                    .Where(t => t.UsuarioId == usuario.Id && !t.Used && t.ExpiresAt > DateTime.UtcNow)
+                    .ToListAsync();
+
+                foreach (var t in tokenAnteriores)
+                    t.Used = true;
+
+                //Generar Token seguro
+                var tokenBytes = new byte[48];
+                using var rng = System.Security.Cryptography.RandomNumberGenerator.Create();
+                rng.GetBytes(tokenBytes);
+                var token = Convert.ToBase64String(tokenBytes)
+                     .Replace("+", "-").Replace("/", "_").Replace("=", "");
+
+                var resetToken = new PasswordResetToken
+                {
+                    Token = token,
+                    UsuarioId = usuario.Id,
+                    ExpiresAt = DateTime.UtcNow.AddHours(1),
+                    CreatedAt = DateTime.UtcNow,
+                    Used = false
+                };
+
+                _context.PasswordResetTokens.Add(resetToken);
+                await _context.SaveChangesAsync();
+
+                //Construir URL de reseteo
+                var baseUrl = _configuration["App:BaseUrl"] ?? "http://localhost:5194";
+                var resetUrl = $"{baseUrl}/reset-password?token={Uri.EscapeDataString(token)}";
+
+                //Enviar email
+                await _emailService.SendPasswordResetEmailAsync(
+                    usuario.Email,
+                    usuario.NombreCompleto,
+                    resetUrl);
+
+                _logger.LogInformation(
+                    "Token de reseteo generado para usuario {Id} {Email}", usuario.Id, usuario.Email);
+                return Ok(respuestaGenerica);
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, "Error recuperando contraseña para {Email}", request.Email);
+                return StatusCode(500, new { mensaje = "Erro al procesar la solicitud" });
+            }
+        }
+
+        /// <summary>
+        /// POST /api/auth/reset-password
+        /// Valida el token y establece la nueva contraseña.
+        /// </summary>
+        [HttpPost("reset-password")]
+        public async Task<ActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+        {
+            try
+            {
+                var resetToken = await _context.PasswordResetTokens
+                    .Include(t => t.Usuario)
+                    .FirstOrDefaultAsync(t =>
+                        t.Token == request.Token &&
+                        !t.Used &&
+                        t.ExpiresAt > DateTime.UtcNow);
+
+                if (resetToken == null)
+                {
+                    return BadRequest(new { mensaje = "El enlace no es válido o ha expirado." });
+                }
+
+                var usuario = resetToken.Usuario;
+
+                if (!usuario.Activo)
+                {
+                    return BadRequest(new { mensaje = "La cuenta está desactivada." });
+                }
+
+                // Actualizar contraseña
+                usuario.PasswordHash = _hashService.Hash(request.NewPassword);
+
+                // Marcar token como usado
+                resetToken.Used = true;
+
+                // Revocar todos los refresh tokens activos (sesiones abiertas)
+                var refreshTokens = await _context.RefreshTokens
+                    .Where(rt => rt.UsuarioId == usuario.Id && !rt.Revoked)
+                    .ToListAsync();
+
+                foreach (var rt in refreshTokens)
+                    rt.Revoked = true;
+
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation(
+                    "Contraseña restablecida para usuario {Id} ({Email})", usuario.Id, usuario.Email);
+
+                return Ok(new { mensaje = "Contraseña restablecida correctamente. Ya puedes iniciar sesión." });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error en reset-password");
+                return StatusCode(500, new { mensaje = "Error al restablecer la contraseña" });
+            }
+        }
+
     }
 }
   

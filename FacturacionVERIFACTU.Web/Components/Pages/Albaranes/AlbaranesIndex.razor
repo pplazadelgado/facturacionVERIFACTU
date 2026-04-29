@@ -36,7 +36,10 @@
             }
         </div>
         <select class="notion-input-modern" style="height:32px; width:90px; font-size:13px; padding: 0 8px;"
-                @onchange="e => { ejercicioSeleccionado = int.Parse(e.Value!.ToString()!); StateHasChanged(); }">
+                @onchange="async e => {
+                ejercicioSeleccionado = int.Parse(e.Value!.ToString()!);
+                await CargarAlbaranesAsync();
+                        }">
             @foreach (var año in ejerciciosDisponibles)
             {
                 <option value="@año" selected="@(año == ejercicioSeleccionado)">@año</option>
@@ -219,7 +222,6 @@
 
     private IEnumerable<AlbaranResponseDto> albaranesFiltrados =>
         albaranes
-            .Where(a => a.Ejercicio == ejercicioSeleccionado)
             .Where(a => estadoSeleccionado == null || a.Estado == estadoSeleccionado)
             .Where(a => string.IsNullOrWhiteSpace(busquedaCliente) ||
                         a.ClienteNombre.Contains(busquedaCliente, StringComparison.OrdinalIgnoreCase));
@@ -229,6 +231,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await CargarEjercicios();
         await CargarAlbaranesAsync();
     }
 
@@ -239,17 +242,11 @@
 
         try
         {
-            var response = await ApiService.GetAsync<List<AlbaranResponseDto>>("api/albaranes");
+            var response = await ApiService.GetAsync<List<AlbaranResponseDto>>(
+                $"api/albaranes?ejercicio={ejercicioSeleccionado}");
             albaranes = response ?? new();
 
-            ejerciciosDisponibles = albaranes
-                .Select(a => a.Ejercicio)
-                .Distinct()
-                .OrderByDescending(e => e)
-                .ToList();
 
-            if (!ejerciciosDisponibles.Contains(ejercicioSeleccionado) && ejerciciosDisponibles.Any())
-                ejercicioSeleccionado = ejerciciosDisponibles.First();
         }
         catch (Exception ex)
         {
@@ -505,5 +502,12 @@
             await CargarAlbaranesAsync();
             await InvokeAsync(StateHasChanged);
         });
+    }
+
+    private async Task CargarEjercicios()
+    {
+        var response = await ApiService.GetAsync<List<int>>("api/ejercicios");
+        ejerciciosDisponibles = response ?? new List<int>{DateTime.Now.Year};
+        ejercicioSeleccionado = ejerciciosDisponibles.FirstOrDefault(DateTime.Now.Year);
     }
 }

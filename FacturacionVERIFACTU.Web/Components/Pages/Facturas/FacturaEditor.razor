@@ -115,7 +115,7 @@
 
                 <div class="notion-input-group">
                     <label class="notion-label">Fecha Emisión</label>
-                    <InputDate @bind-Value="factura.FechaEmision" class="notion-input-modern" disabled="@(!EsEditable)" />
+                    <InputDate @bind-Value="factura.FechaEmision" class="notion-input-modern" disabled="@(!EsEditable)" @bind-Value:after="CargarDatosInicialesAsync" />
                 </div>
 
                 <div class="notion-input-group">
@@ -235,11 +235,13 @@
                                             inputmode="decimal"
                                             class="notion-input-modern"
                                             style="text-align: right;"
-                                            value="@lineaActual.Cantidad.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)"
+                                            value="@(lineaActual.Cantidad?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) ?? "")"
                                             @onchange="@(e => {
                                                 var raw = (e.Value?.ToString() ?? "").Replace(',', '.');
-                                                if (decimal.TryParse(raw, System.Globalization.NumberStyles.Any,
-                                                    System.Globalization.CultureInfo.InvariantCulture, out var v) && v > 0)
+                                                if (string.IsNullOrWhiteSpace(raw))
+                                                    lineaActual.Cantidad = null;
+                                                else if (decimal.TryParse(raw, System.Globalization.NumberStyles.Any,
+                                                    System.Globalization.CultureInfo.InvariantCulture, out var v) && v != 0)
                                                     lineaActual.Cantidad = v;
                                                 StateHasChanged();
                                             })"
@@ -641,8 +643,9 @@
             var responseClientes = await ApiService.GetAsync<PaginatedResponseDto<ClienteDto>>("api/clientes?page=1&pageSize=500");
             clientes = responseClientes?.Items ?? new();
 
+            var ejercicio = factura.FechaEmision == default ? DateTime.Today.Year : factura.FechaEmision.Year;
             var responseSeries = await ApiService.GetAsync<PaginatedResponseDto<SerieDto>>(
-                "api/series?page=1&pageSize=100&tipoDocumento=FACTURA&soloActivas=true");
+                $"api/series?page=1&pageSize=100&tipoDocumento=FACTURA&soloActivas=true&ejercicio={ejercicio}");
             series = responseSeries?.Items ?? new();
 
             var responseTipos = await ApiService.GetAsync<List<TipoImpuestoListadoDto>>("api/tiposimpuesto");
@@ -734,7 +737,7 @@
         }
 
         factura.Lineas = factura.Lineas
-            .Where(linea => !string.IsNullOrWhiteSpace(linea.Descripcion) && linea.Cantidad > 0)
+            .Where(linea => !string.IsNullOrWhiteSpace(linea.Descripcion))
             .ToList();
 
         if (factura.Lineas.Count == 0)
@@ -761,7 +764,7 @@
                     Lineas = factura.Lineas.Select(l => new LineaFacturaDto
                     {
                         Descripcion = l.Descripcion,
-                        Cantidad = l.Cantidad,
+                        Cantidad = l.Cantidad ?? 0m,
                         PrecioUnitario = l.PrecioUnitario,
                         PorcentajeDescuento = l.PorcentajeDescuento,
                         TipoImpuestoId = l.TipoImpuestoId,
@@ -790,7 +793,7 @@
                     {
                         Id = l.Id,
                         Descripcion = l.Descripcion,
-                        Cantidad = l.Cantidad,
+                        Cantidad = l.Cantidad ?? 0m,
                         PrecioUnitario = l.PrecioUnitario,
                         PorcentajeDescuento = l.PorcentajeDescuento,
                         TipoImpuestoId = l.TipoImpuestoId,
@@ -843,7 +846,7 @@
 
     private LineaFacturaViewModel CrearLineaConTipoPorDefecto()
     {
-        var linea = new LineaFacturaViewModel { Cantidad = 1 };
+        var linea = new LineaFacturaViewModel { Cantidad = null };
         var tipoDefault = tiposImpuesto.FirstOrDefault(t => t.Activo && t.Nombre.Equals("General", StringComparison.OrdinalIgnoreCase))
                           ?? tiposImpuesto.FirstOrDefault(t => t.Activo);
         if (tipoDefault != null)
@@ -977,7 +980,7 @@
         var linea = new LineaFacturaViewModel
         {
             Descripcion = producto.Descripcion,
-            Cantidad = 1,
+            Cantidad = null,
             PrecioUnitario = producto.PrecioUnitario,
             PorcentajeDescuento = 0,
             ProductoId = producto.ProductoId,
@@ -1049,7 +1052,7 @@
         return Task.CompletedTask;
     }
 
-    private decimal CalcularSubtotal(LineaFacturaViewModel linea) => linea.Cantidad * linea.PrecioUnitario;
+    private decimal CalcularSubtotal(LineaFacturaViewModel linea) => (linea.Cantidad ?? 0) * linea.PrecioUnitario;
     private decimal CalcularDescuento(LineaFacturaViewModel linea) => CalcularSubtotal(linea) * (linea.PorcentajeDescuento / 100m);
     private decimal CalcularBase(LineaFacturaViewModel linea) => CalcularSubtotal(linea) - CalcularDescuento(linea);
 
@@ -1283,7 +1286,7 @@
         public int? Id { get; set; }
         public int? TipoImpuestoId { get; set; }
         [Required] public string Descripcion { get; set; } = string.Empty;
-        [Range(0.01, double.MaxValue)] public decimal Cantidad { get; set; } = 1;
+        public decimal? Cantidad { get; set; } 
         [Range(0, double.MaxValue)] public decimal PrecioUnitario { get; set; }
         [Range(0, 100)] public decimal PorcentajeDescuento { get; set; }
         public int? ProductoId { get; set; }

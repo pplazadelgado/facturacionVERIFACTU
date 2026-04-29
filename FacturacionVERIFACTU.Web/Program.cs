@@ -23,6 +23,23 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     {
         options.LoginPath = "/login";
         options.ExpireTimeSpan = TimeSpan.FromMinutes(30);
+        options.Events = new CookieAuthenticationEvents
+        {
+            OnRedirectToLogin = context =>
+            {
+                // Para rutas admin usamos login admin; el resto mantiene /login.
+                if (context.Request.Path.StartsWithSegments("/admin", StringComparison.OrdinalIgnoreCase))
+                {
+                    var returnUrl = Uri.EscapeDataString(
+                        context.Request.Path + context.Request.QueryString);
+                    context.Response.Redirect($"/admin/login?returnUrl={returnUrl}");
+                    return Task.CompletedTask;
+                }
+
+                context.Response.Redirect(context.RedirectUri);
+                return Task.CompletedTask;
+            }
+        };
     });
 
 builder.Services.AddCascadingAuthenticationState();

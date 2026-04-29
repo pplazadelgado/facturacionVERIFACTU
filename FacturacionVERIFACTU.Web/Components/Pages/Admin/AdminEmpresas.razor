@@ -1,0 +1,177 @@
+﻿@page "/admin/empresas"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "SuperAdmin")]
+@layout AdminLayout
+@inject IApiService ApiService
+@inject NavigationManager Nav
+
+<div class="notion-header">
+    <div class="header-main">
+        <span class="header-icon">
+            <i class="bi bi-building"></i>
+        </span>
+    </div>
+</div>
+
+@* Filtros*@
+<div class="notion-toolbar" style="margin-bottom: 24px; border-bottom: 1px solid #edeceb">
+    <div class="notion-tabs">
+        @foreach (var plan in new[]{"Todos", "Demo","Activo","Suspendido"})
+        {
+            <button class="notion-tab @(filtro == plan ? "active" : "")"
+                    @onclick="() => CambiarFiltro(plan)">
+                @plan
+                <span class="tab-count">@ContarPorPlan(plan)</span>
+            </button>
+        }
+    </div>
+    <div class="notion-search-wrapper" style="max-width: 260px;">
+        <i class="bi bi-search"></i>
+        <input class="notion-search-input"
+            placeholder="Buscar empresa o NIF..."
+            @bind= "busqueda"
+            @bind:event="oninput"
+            @bind:after="CargarAsync"/>
+    </div>
+</div>
+
+@if (isLoading)
+{
+    <div class="notion-loading">
+        <div class="spinner-modern"></div>
+        <span>Cargando empresas...</span>
+    </div>
+}
+else if(response != null)
+{
+    <div class="notion-table-wrapper">
+        <table class="notion-table">
+            <thead>
+                <tr>
+                    <th>EMPRESA</th>
+                    <th>PLAN</th>
+                    <th style="text-align: right;">FACTURAS</th>
+                    <th style="text-align: right;">VOLUMEN</th>
+                    <th style="text-align: center;">USUARIOS</th>
+                    <th>ÚLTIMO ACCESO</th>
+                    <th>FIN PLAN</th>
+                    <th style="text-align: right;">ACCIONES</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var empresa in response.Items)
+                {
+                    <tr class="@(!empresa.Activo ? "notion-row-inactive" :"")">
+                        <td>
+                            <div class="notion-cell-title">@empresa.Nombre</div>
+                            <div class="notion-cell-desc">@empresa.NIF</div>
+                        </td>
+                        <td>@GetPlanBadge(empresa.Plan)</td>
+                        <td style="text-align: right; font-weight:600;">
+                            @empresa.TotalFacturas
+                        </td>
+                        <td style="text-align: right">
+                            @empresa.VolumenFacturado.ToString("c")
+                        </td>
+                        <td style="text-align: center;">
+                            @empresa.UsuariosActivos
+                        </td>
+                        <td style="color: var(--muted); font-size: 13px;">
+                            @(empresa.UltimoAcceso.HasValue
+                                                ? empresa.UltimoAcceso.Value.ToLocalTime().ToString("dd/MM/yy HH:mm")
+                                                : "Nunca")
+                         </td>
+                         <td style="font-size; 13px;">
+                            @if (empresa.FechaFinPlan.HasValue)
+                            {
+                                var diasRestantes = (empresa.FechaFinPlan.Value - DateTime.UtcNow).Days;
+                                <span style="color: @(diasRestantes <= 7 ? "#dc2626" : "var(--muted)")">
+                                    @empresa.FechaFinPlan.Value.ToString("dd/MM/yyyy")
+                                    @if (diasRestantes <= 7 && diasRestantes >= 0)
+                                    {
+                                        <small> (@diasRestantes d)</small>
+                                    }
+                                </span>
+                            }
+                            else
+                            {
+                                <span style="color: var(--muted);">-</span>
+                            }
+                        </td>
+                        <td style="text-align: right;">
+                            <div class="notion-actions" style="justify-content: flex-end; gap:4px;">
+                                <button class="btn-modern-secondary"
+                                        disabled="@(!response.HasPreviousPage)"
+                                        @onclick="() => CambiarPagina(paginaActual - 1)">
+                                    <i class="bi bi-chevron-left"></i>
+                                </button>
+                                <span style="padding: 8px 16px; font-size: 13px; color: var(--muted);">
+                                    Pagina @response.Page de @response.TotalPages
+                                </span>
+                                <button class="btn-modern-secondary"
+                                        disabled="@(!response.HasNextPage)"
+                                        @onclick="() => CambiarPagina(paginaActual + 1)">
+                                    <i class="bi bi-chevron-right"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private PaginatedResponseDto<TenantDetalleDto>? response;
+    private bool isLoading = true;
+    private string filtro = "Todos";
+    private string busqueda = string.Empty;
+    private int paginaActual = 1;
+
+    protected override async Task OnInitializedAsync() => await CargarAsync();
+
+    private async Task CargarAsync()
+    {
+        isLoading = true;
+        try
+        {
+            var planParam = filtro == "Todos" ? "" : $"&plan={filtro}";
+            var searchParam = string.IsNullOrWhiteSpace(busqueda) ? "" : $"&search={Uri.EscapeDataString(busqueda)}";
+            response = await ApiService.GetAsync<PaginatedResponseDto<TenantDetalleDto>>(
+                $"api/admin/empresas?page={paginaActual}&pagesize=20{planParam}{searchParam}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task CambiarFiltro(string plan)
+    {
+        filtro = plan;
+        paginaActual = 1;
+        await CargarAsync();
+    }
+
+    private async Task CambiarPagina(int pagina)
+    {
+        paginaActual = pagina;
+        await CargarAsync();
+    }
+
+    private int ContarPorPlan(string plan)
+    {
+        if (response == null) return 0;
+        if (plan == "Todos") return response.TotalItems;
+        return response.Items.Count(e => e.Plan == plan);
+    }
+
+    private RenderFragment GetPlanBadge(string plan) => plan switch
+    {
+        "Demo" =>@<span class="notion-badge badge-warning">Demo</span>,
+        "Activo" =>@<span class="notion-badge badge-success">Activo</span>,
+        "Suspendido" =>@<span class="notion-badge badge-error">Suspendido</span>,
+        _ =>@<span class="notion-badge badge-default">@plan</span>
+    };
+}

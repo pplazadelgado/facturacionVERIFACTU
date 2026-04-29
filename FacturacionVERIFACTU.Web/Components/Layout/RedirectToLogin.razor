@@ -2,7 +2,16 @@
 @code {
     protected override void OnInitialized()
     {
-        // Redirige al login y fuerza la recarga para limpiar estados antiguos
-        NavManager.NavigateTo("login", forceLoad: true);
+        // Si venimos de /admin, mandamos al login de admin.
+        var relative = NavManager.ToBaseRelativePath(NavManager.Uri);
+        if (relative.StartsWith("admin", StringComparison.OrdinalIgnoreCase))
+        {
+            var returnUrl = Uri.EscapeDataString(relative);
+            NavManager.NavigateTo($"/admin/login?returnUrl={returnUrl}", forceLoad: true);
+            return;
+        }
+
+        // Flujo estándar para el resto de la app.
+        NavManager.NavigateTo("/login", forceLoad: true);
     }
 }

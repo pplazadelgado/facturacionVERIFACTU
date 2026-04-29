@@ -1,0 +1,130 @@
+﻿@page "/admin/login"
+@using FacturacionVERIFACTU.Web.Models.DTOs
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+@using Microsoft.AspNetCore.WebUtilities
+@inject HttpClient Http
+@inject NavigationManager Nav
+@inject ProtectedSessionStorage SessionStorage
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Admin Login</PageTitle>
+
+<div class="login-container">
+    <div class="login-card">
+        <div class="login-header">
+            <i class="bi bi-shield-lock-fill" style="font-size: 2rem; color: #dc2626;"></i>
+            <h1 style="color: #dc2626;">Panel de Administración</h1>
+            <p>Acceso restringido a SuperAdmin</p>
+        </div>
+
+        <EditForm Model="model" OnValidSubmit="HandleLogin">
+            <DataAnnotationsValidator />
+
+            <div class="notion-input-group">
+                <label class="notion-label">Email</label>
+                <InputText @bind-Value="model.Email"
+                           class="notion-input-modern"
+                           placeholder="superadmin@tudominio.com"
+                           autofocus />
+            </div>
+
+            <div class="notion-input-group">
+                <label class="notion-label">Contraseña</label>
+                <InputText @bind-Value="model.Password"
+                           type="password"
+                           class="notion-input-modern"
+                           placeholder="••••••••" />
+            </div>
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger" style="font-size: 13px; border-radius: 8px; border: none; background-color: #fff0f0; color: #e03e3e;">
+                    <i class="bi bi-exclamation-circle-fill"></i> @errorMessage
+                </div>
+            }
+
+            <button type="submit" class="btn-modern"
+                    style="background: #dc2626; border-color: #dc2626;"
+                    disabled="@isLoading">
+                @if (isLoading)
+                {
+                    <span class="spinner-border spinner-border-sm" role="status"></span>
+                    <span class="ms-2">Accediendo...</span>
+                }
+                else
+                {
+                    <span>Acceder al panel</span>
+                }
+            </button>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    private LoginRequest model = new();
+    private string errorMessage = string.Empty;
+    private bool isLoading;
+    private const string TOKEN_KEY = "authToken";
+    private const string USER_KEY = "currentUser";
+    private string? returnUrl;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var uri = new Uri(Nav.Uri);
+        var query = QueryHelpers.ParseQuery(uri.Query);
+        if (query.TryGetValue("returnUrl", out var value))
+            returnUrl = value.ToString();
+
+        // Si ya está autenticado como SuperAdmin, redirigir al panel
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        if (authState.User.IsInRole("SuperAdmin"))
+            Nav.NavigateTo(string.IsNullOrWhiteSpace(returnUrl) ? "/admin" : $"/{returnUrl.TrimStart('/')}");
+    }
+
+    private async Task HandleLogin()
+    {
+        isLoading = true;
+        errorMessage = string.Empty;
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/superadmin/login", model);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                errorMessage = "Credenciales inválidas";
+                return;
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
+            if (result == null)
+            {
+                errorMessage = "Error al procesar la respuesta";
+                return;
+            }
+
+            // Guardar token y usuario en SessionStorage (sin tocar el login normal)
+            await SessionStorage.SetAsync(TOKEN_KEY, result.AccessToken);
+            await SessionStorage.SetAsync(USER_KEY, result.User);
+
+            // Notificar a Blazor que cambió el estado de autenticación
+            if (AuthStateProvider is FacturacionVERIFACTU.Web.Services.CustomAuthStateProvider custom)
+                custom.NotifyAuthenticationStateChanged();
+
+            var destino = string.IsNullOrWhiteSpace(returnUrl)
+                ? "/admin"
+                : $"/{returnUrl.TrimStart('/')}";
+
+            // Sin forceLoad para mantener el estado auth recién notificado.
+            Nav.NavigateTo(destino);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error de conexión: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

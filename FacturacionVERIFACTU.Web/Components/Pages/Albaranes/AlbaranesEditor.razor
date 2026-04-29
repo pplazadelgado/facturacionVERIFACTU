@@ -103,7 +103,7 @@
 
                 <div class="notion-input-group">
                     <label class="notion-label">Fecha Emisión</label>
-                    <InputDate @bind-Value="albaran.FechaEmision" class="notion-input-modern" disabled="@(!EsEditable)" />
+                    <InputDate @bind-Value="albaran.FechaEmision" class="notion-input-modern" disabled="@(!EsEditable)" @bind-Value:after="CargarDatosInicialesAsync" />
                 </div>
 
                 <div class="notion-input-group">
@@ -219,8 +219,16 @@
                                    <input type="number"
                                        class="notion-input-modern"
                                        style="text-align: right;"
-                                       value="@lineaActual.Cantidad.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)"
-                                       @onchange="@(e => { if (decimal.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var v)) lineaActual.Cantidad = v; })"
+                                       value="@(lineaActual.Cantidad?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) ?? "")"
+                                        @onchange="@(e => {
+                                            var raw = (e.Value?.ToString() ?? "").Replace(',', '.');
+                                            if (string.IsNullOrWhiteSpace(raw))
+                                                lineaActual.Cantidad = null;
+                                            else if (decimal.TryParse(raw, System.Globalization.NumberStyles.Any,
+                                                System.Globalization.CultureInfo.InvariantCulture, out var v) && v != 0)
+                                                lineaActual.Cantidad = v;
+                                            StateHasChanged();
+                                        })" 
                                        disabled="@(!EsEditable)" />
                                 </td>
                                 <td style="padding: 12px 10px;">
@@ -460,6 +468,7 @@
 
 
 @code {
+
     [Parameter] public int Id { get; set; }
 
     [Inject] private IApiService ApiService { get; set; } = null!;
@@ -524,9 +533,13 @@
             var responseClientes = await ApiService.GetAsync<PaginatedResponseDto<ClienteDto>>("api/clientes?page=1&pageSize=500");
             clientes = responseClientes?.Items ?? new();
 
+
+
             // Cargar series de albarán (IMPORTANTE: usar ALBARAN en mayúsculas y con PaginatedResponseDto)
+
+            var ejercicio = albaran.FechaEmision == default ? DateTime.Today.Year : albaran.FechaEmision.Year;
             var responseSeries = await ApiService.GetAsync<PaginatedResponseDto<SerieDto>>(
-                "api/series?page=1&pageSize=100&tipoDocumento=ALBARAN&soloActivas=true");
+                $"api/series?page=1&pageSize=100&tipoDocumento=ALBARAN&soloActivas=true&ejercicio={ejercicio}");
             series = responseSeries?.Items ?? new();
 
             // Cargar tipos de impuesto
@@ -618,7 +631,7 @@
         }
 
         albaran.Lineas = albaran.Lineas
-            .Where(linea => !string.IsNullOrWhiteSpace(linea.Descripcion) && linea.Cantidad > 0)
+            .Where(linea => !string.IsNullOrWhiteSpace(linea.Descripcion))
             .ToList();
 
         if (albaran.Lineas.Count == 0)
@@ -645,7 +658,7 @@
                     Lineas = albaran.Lineas.Select(l => new LineaAlbaranDto
                     {
                         Descripcion = l.Descripcion,
-                        Cantidad = l.Cantidad,
+                        Cantidad = l.Cantidad ?? 0m,
                         PrecioUnitario = l.PrecioUnitario,
                         PorcentajeDescuento = l.PorcentajeDescuento,
                         TipoImpuestoId = l.TipoImpuestoId,
@@ -676,7 +689,7 @@
                     {
                         Id = l.Id,
                         Descripcion = l.Descripcion,
-                        Cantidad = l.Cantidad,
+                        Cantidad = l.Cantidad ?? 0m,
                         PrecioUnitario = l.PrecioUnitario,
                         PorcentajeDescuento = l.PorcentajeDescuento,
                         TipoImpuestoId = l.TipoImpuestoId,
@@ -733,7 +746,7 @@
 
     private LineaAlbaranViewModel CrearLineaConTipoPorDefecto()
     {
-        var linea = new LineaAlbaranViewModel { Cantidad = 1 };
+        var linea = new LineaAlbaranViewModel { Cantidad = null };
         var tipoDefault = tiposImpuesto.FirstOrDefault(t => t.Activo && t.Nombre.Equals("General", StringComparison.OrdinalIgnoreCase))
                           ?? tiposImpuesto.FirstOrDefault(t => t.Activo);
         if (tipoDefault != null)
@@ -868,7 +881,7 @@
         var linea = new LineaAlbaranViewModel
         {
             Descripcion = producto.Descripcion,
-            Cantidad = 1,
+            Cantidad = null,
             PrecioUnitario = producto.PrecioUnitario,
             PorcentajeDescuento = 0,
             ProductoId = producto.ProductoId,
@@ -926,7 +939,7 @@
         return Task.CompletedTask;
     }
 
-    private decimal CalcularSubtotal(LineaAlbaranViewModel linea) => linea.Cantidad * linea.PrecioUnitario;
+    private decimal CalcularSubtotal(LineaAlbaranViewModel linea) => (linea.Cantidad ?? 0) * linea.PrecioUnitario;
     private decimal CalcularDescuento(LineaAlbaranViewModel linea) => CalcularSubtotal(linea) * (linea.PorcentajeDescuento / 100m);
     private decimal CalcularBase(LineaAlbaranViewModel linea) => CalcularSubtotal(linea) - CalcularDescuento(linea);
 
@@ -1051,7 +1064,7 @@
         public int? Id { get; set; }
         public int? TipoImpuestoId { get; set; }
         [Required] public string Descripcion { get; set; } = string.Empty;
-        [Range(0.01, double.MaxValue)] public decimal Cantidad { get; set; } = 1;
+        public decimal? Cantidad { get; set; }
         [Range(0, double.MaxValue)] public decimal PrecioUnitario { get; set; }
         [Range(0, 100)] public decimal PorcentajeDescuento { get; set; }
         public int? ProductoId { get; set; }

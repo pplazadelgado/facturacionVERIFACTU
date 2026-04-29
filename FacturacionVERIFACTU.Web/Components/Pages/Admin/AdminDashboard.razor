@@ -1,0 +1,143 @@
+﻿@page "/admin"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles="SuperAdmin")]
+@layout AdminLayout
+@inject IApiService ApiService
+@inject NavigationManager Nav
+
+<PageTitle>Dashboard - SuperAdmin</PageTitle>
+
+<div class="notion-header">
+    <div class="header-main">
+        <span class="header-icon" style="background: #fef2f2; border-color: #fecaca">
+            <i class="bi bi-speedometer2" style="color: #dc2626"></i>
+        </span>
+        <div>
+            <h1>Dashboard Globla</h1>
+            <p style="color: var(--muted); font-size: 14px;">
+                Vision general del sistema - @DateTime.Now.ToString("dd/MM/yyyy")
+            </p>
+        </div>
+    </div>
+    <button class="btn-modern-secondary" @onclick="Recargar">
+        <i class="bi bi-arrow-clockwise"></i>Actualizar
+    </button>
+</div>
+
+@if (isLoading)
+{
+    <div class="notion-loading">
+        <div class="spinner-modern"></div>
+        <span>Cargando datos del sistema...</span>
+    </div>
+}
+else if(dashboard != null)
+{
+    @* KPIs *@
+    <div class="dashboard-kpi-grid" style="margin-bottom: 24px;">
+        <div class="dashboard-kpi ui-card">
+            <div class="dashboard-kpi-title">Total Empresas</div>
+            <div class="dashboard-kpi-value">@dashboard.TotalEmpresas</div>
+        </div>
+        <div class="dashboard-kpi ui-card" style="border-left: 3px solid #f59e0b;">
+            <div class="dashboard-kpi-title">En Demo</div>
+            <div class="dashboard-kpi-value" style="color: #92400e;">@dashboard.EmpresasDemo</div>
+            @if (dashboard.DemosVencenProximamente > 0)
+            {
+                <div class="dashboard-kpi-hint" style="color: #dc2626;">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    @dashboard.DemosVencenProximamente vencen en 7 días
+                </div>
+            }
+        </div>
+        <div class="dashboard-kpi ui-card" style="border-left: 3px solid #22c55e;">
+            <div class="dashboard-kpi-title">Activas</div>
+            <div class="dashboard-kpi-value" style="color: #166534;">@dashboard.EmpresasActivas</div>
+        </div>
+        <div class="dashboard-kpi ui-card" style="border-left: 3px solid #ef4444;">
+            <div class="dashboard-kpi-title">Suspendidas</div>
+            <div class="dashboard-kpi-value" style="color: #dc2626;">@dashboard.EmpresasSuspendidas</div>
+        </div>
+        <div class="dashboard-kpi ui-card" style="border-left: 3px solid #6366f1;">
+            <div class="dashboard-kpi-title">Facturas este mes</div>
+            <div class="dashboard-kpi-value">@dashboard.FacturasMesActual</div>
+            <div class="dashboard-kpi-hint">@dashboard.VolumenMesActual.ToString("C") volumen</div>
+        </div>
+    </div>
+
+    @* Últimas altas *@
+    <div class="ui-card" style="padding: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Últimas altas</h3>
+            <a href="/admin/empresas" style="font-size: 13px; color: var(--primary); text-decoration: none;">
+                Ver todas →
+            </a>
+        </div>
+
+        <div class="notion-table-wrapper">
+            <table class="notion-table">
+                <thead>
+                    <tr>
+                        <th>EMPRESA</th>
+                        <th>NIF</th>
+                        <th>PLAN</th>
+                        <th>ALTA</th>
+                        <th>FIN PLAN</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var empresa in dashboard.UltimasAltas)
+                    {
+                        <tr>
+                            <td>
+                                <a href="/admin/empresas/@empresa.Id"
+                                   style="font-weight: 600; text-decoration: none; color: inherit;">
+                                    @empresa.Nombre
+                                </a>
+                            </td>
+                            <td><span class="notion-code-text">@empresa.NIF</span></td>
+                            <td>@GetPlanBadge(empresa.Plan)</td>
+                            <td style="color: var(--muted);">@empresa.FechaAlta.ToString("dd/MM/yyyy")</td>
+                            <td style="color: var(--muted);">
+                                @(empresa.FechaFinPlan.HasValue
+                                                        ? empresa.FechaFinPlan.Value.ToString("dd/MM/yyyy")
+                                                        : "—")
+                    </td>
+                </tr>
+                                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+@code {
+    private AdminDashboardDto? dashboard;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync() => await Recargar();
+
+    private async Task Recargar()
+    {
+        isLoading = true;
+        try
+        {
+            dashboard = await ApiService.GetAsync<AdminDashboardDto>("api/admin/dashboard");
+        }
+        catch(Exception ex)
+        {
+            Console.WriteLine($"Error dashboard admin: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private RenderFragment GetPlanBadge(string plan) => plan switch
+    {
+        "Demo" => @<span class="notion-badge badge-warning">Demo</span>,
+        "Activo" => @<span class="notion-badge badge-success">Activo</span>,
+        "Suspendido" => @<span class="notion-badge badge-error">Suspendido</span>,
+        _ => @<span class="notion-badge badge-default">@plan</span>
+    };
+}

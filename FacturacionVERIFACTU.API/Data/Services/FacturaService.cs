@@ -18,7 +18,7 @@ namespace FacturacionVERIFACTU.API.Data.Services
         Task<FacturaResponseDto> MarcarComoPagadaAsync(int tenantId, int id, MarcarComoPagadaDto dto);
         Task<FacturaResponseDto> AnularFacturaAsync(int tenantId, int id, AnularFacturaDto dto);
         Task<FacturaResponseDto> ObtenerPorIdAsync(int tenantId, int id);
-        Task<List<FacturaResponseDto>> ObtenerTodosAsync(int tenantId, int? id, string? estado, DateTime? fechaDesde, DateTime? fechaHasta);
+        Task<List<FacturaResponseDto>> ObtenerTodosAsync(int tenantId, int? id, string? estado, int? ejercicio);
         Task<bool> EliminarAsync(int tenantId, int id);
         Task<FacturaResponseDto> ConvertirDesdePresupuestoAsync(int tenantId, int id, ConvertirPresupuestoAFacturaDto dto);
         Task<FacturaResponseDto> ConvertirDesdePresupuestosAsync(int tenantId, ConvertirPresupuestosAFacturaDto dto);
@@ -30,7 +30,7 @@ namespace FacturacionVERIFACTU.API.Data.Services
         private readonly ApplicationDbContext _context;
         private readonly ISerieNumeracionService _numeracionService;
         private readonly VERIFACTUService _verifactuService;
-        private readonly AEATClient _verifactuHttpClient;
+        private readonly IAEATClient _verifactuHttpClient;
         private readonly ILogger<FacturaService> _logger;
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly ICacheService _cacheService;
@@ -39,7 +39,7 @@ namespace FacturacionVERIFACTU.API.Data.Services
             ApplicationDbContext context,
             ISerieNumeracionService numeracionService,
             VERIFACTUService verifactuService,
-            AEATClient verifactuHttpClient,
+            IAEATClient verifactuHttpClient,
             ILogger<FacturaService> logger,
             IServiceScopeFactory scopeFactory,
             ICacheService cacheService)
@@ -78,9 +78,12 @@ namespace FacturacionVERIFACTU.API.Data.Services
 
             foreach (var linea in lineasFiltradas)
             {
-                if (linea.Cantidad <= 0)
+                var esLineaTexto = (linea.Cantidad == 0 || linea.Cantidad == null)
+                   && !string.IsNullOrWhiteSpace(linea.Descripcion);
+
+                if (!esLineaTexto && linea.Cantidad == 0)
                 {
-                    throw new InvalidOperationException("La cantidad debe ser mayor a 0.");
+                    throw new InvalidOperationException("La cantidad no puede ser cero sin descripción.");
                 }
 
                 if (linea.PrecioUnitario < 0)
@@ -325,10 +328,6 @@ namespace FacturacionVERIFACTU.API.Data.Services
 
             foreach (var linea in lineasFiltradas)
             {
-                if (linea.Cantidad <= 0)
-                {
-                    throw new InvalidOperationException("La cantidad debe ser mayor a 0.");
-                }
 
                 if (linea.PrecioUnitario < 0)
                 {
@@ -586,8 +585,7 @@ namespace FacturacionVERIFACTU.API.Data.Services
             int tenantId,
             int? clienteId = null,
             string? estado = null,
-            DateTime? fechaDesde = null,
-            DateTime? fechaHasta = null)
+            int? ejercicio = null)
                 {
                     var query = _context.Facturas
                         .Where(f => f.TenantId == tenantId)
@@ -597,10 +595,8 @@ namespace FacturacionVERIFACTU.API.Data.Services
                         query = query.Where(f => f.ClienteId == clienteId.Value);
                     if (!string.IsNullOrEmpty(estado))
                         query = query.Where(f => f.Estado == estado);
-                    if (fechaDesde.HasValue)
-                        query = query.Where(f => f.FechaEmision >= fechaDesde.Value.ToUniversalTime());
-                    if (fechaHasta.HasValue)
-                        query = query.Where(f => f.FechaEmision <= fechaHasta.Value.ToUniversalTime());
+            if (ejercicio.HasValue)
+                query = query.Where(f => f.Ejercicio == ejercicio.Value);
 
                     return await query
                         .OrderByDescending(f => f.FechaEmision)
@@ -617,7 +613,7 @@ namespace FacturacionVERIFACTU.API.Data.Services
                             Ejercicio = f.Ejercicio,
                             FechaEmision = f.FechaEmision,
                             BaseImponible = f.BaseImponible,
-                            TotalIva = f.TotalIVA,
+                            TotalIVA = f.TotalIVA,
                             TotalRecargo = f.TotalRecargo ?? 0m,
                             PorcentajeRetencion = f.PorcentajeRetencion ?? 0m,
                             CuotaRetencion = f.CuotaRetencion ?? 0m,
@@ -1369,7 +1365,7 @@ namespace FacturacionVERIFACTU.API.Data.Services
 
                 // ⭐ TOTALES ACTUALIZADOS
                 BaseImponible = factura.BaseImponible,
-                TotalIva = factura.TotalIVA,
+                TotalIVA = factura.TotalIVA,
                 TotalRecargo = factura.TotalRecargo ?? 0m, // ⭐ NUEVO
                 PorcentajeRetencion = factura.PorcentajeRetencion ?? 0m, // ⭐ NUEVO
                 CuotaRetencion = factura.CuotaRetencion ?? 0m, // ⭐ NUEVO

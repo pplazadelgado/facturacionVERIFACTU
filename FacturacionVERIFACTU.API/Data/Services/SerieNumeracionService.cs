@@ -41,12 +41,55 @@ namespace FacturacionVERIFACTU.API.Data.Services
             int ejercicio,
             string tipoDocumento = DocumentTypes.PRESUPUESTO)
         {
-            // Lock para evitar condiciones de carrera
+            var providerName = _context.Database.ProviderName ?? "";
+            if (!providerName.Contains("InMemory", StringComparison.OrdinalIgnoreCase))
+            {
+                return await ObtenerSiguienteNumeroRelacionalAsync(tenantId, codigoSerie, ejercicio, tipoDocumento);
+            }
+
+            // Base de datos en memoria (tests): LINQ sin SQL raw ni transacciones
+            var serieNumeracion = await _context.SeriesNumeracion
+                .Where(s => s.TenantId == tenantId
+                         && s.Codigo == codigoSerie
+                         && s.Ejercicio == ejercicio
+                         && s.TipoDocumento == tipoDocumento)
+                .FirstOrDefaultAsync();
+
+            if (serieNumeracion == null)
+            {
+                serieNumeracion = new SerieNumeracion
+                {
+                    TenantId = tenantId,
+                    Codigo = codigoSerie,
+                    Descripcion = $"Serie {codigoSerie} {tipoDocumento}",
+                    TipoDocumento = tipoDocumento,
+                    ProximoNumero = 1,
+                    Ejercicio = ejercicio,
+                    Activo = true,
+                    Bloqueada = false
+                };
+                _context.SeriesNumeracion.Add(serieNumeracion);
+                await _context.SaveChangesAsync();
+            }
+
+            int numeroActual = serieNumeracion.ProximoNumero;
+            serieNumeracion.ProximoNumero++;
+            await _context.SaveChangesAsync();
+
+            var numeroCompleto = $"{serieNumeracion.Codigo}{ejercicio}-{numeroActual:D3}";
+            _logger.LogInformation(
+                "Generado número {NumeroCompleto} para tenant {TenantId}, serie {Codigo}, ejercicio {Ejercicio}",
+                numeroCompleto, tenantId, codigoSerie, ejercicio);
+            return (numeroCompleto, numeroActual);
+        }
+
+        private async Task<(string NumeroCompleto, int Numero)> ObtenerSiguienteNumeroRelacionalAsync(
+            int tenantId, string codigoSerie, int ejercicio, string tipoDocumento)
+        {
             await using var transaction = await _context.Database.BeginTransactionAsync();
 
             try
             {
-                // Buscar configuración de serie
                 var serieNumeracion = await _context.SeriesNumeracion
                     .FromSqlInterpolated($@"
                         SELECT * FROM series_facturacion
@@ -59,7 +102,7 @@ namespace FacturacionVERIFACTU.API.Data.Services
 
                 if (serieNumeracion == null)
                 {
-                    var descripcion = $"Serir {codigoSerie} {tipoDocumento}";
+                    var descripcion = $"Serie {codigoSerie} {tipoDocumento}";
                     const string formatoPorDefecto = "{SERIE}-{NUMERO}/{EJERCICIO}";
 
                     await _context.Database.ExecuteSqlInterpolatedAsync($@"
@@ -68,25 +111,32 @@ namespace FacturacionVERIFACTU.API.Data.Services
                         VALUES
                             ({tenantId}, {codigoSerie}, {descripcion}, {tipoDocumento}, 1, {ejercicio}, {formatoPorDefecto}, true, false)
                         ON CONFLICT (tenant_id, codigo, ejercicio, tipo_documento) DO NOTHING;");
+
+                    serieNumeracion = await _context.SeriesNumeracion
+                        .FromSqlInterpolated($@"
+                            SELECT * FROM series_facturacion
+                            WHERE tenant_id = {tenantId}
+                              AND codigo = {codigoSerie}
+                              AND ejercicio = {ejercicio}
+                              AND tipo_documento = {tipoDocumento}
+                            FOR UPDATE")
+                        .FirstOrDefaultAsync();
                 }
 
-                // Obtener número actual
-                int numeroActual = serieNumeracion.ProximoNumero;
+                if (serieNumeracion == null)
+                    throw new InvalidOperationException(
+                        $"No se encontró la serie '{codigoSerie}' para el ejercicio {ejercicio}.");
 
-                // Incrementar para el próximo
+                int numeroActual = serieNumeracion.ProximoNumero;
                 serieNumeracion.ProximoNumero++;
 
-                // Guardar cambios
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 
-                // Formatear número completo: P2024-001
                 var numeroCompleto = $"{serieNumeracion.Codigo}{ejercicio}-{numeroActual:D3}";
-
                 _logger.LogInformation(
                     "Generado número {NumeroCompleto} para tenant {TenantId}, serie {Codigo}, ejercicio {Ejercicio}",
                     numeroCompleto, tenantId, codigoSerie, ejercicio);
-
                 return (numeroCompleto, numeroActual);
             }
             catch (Exception ex)

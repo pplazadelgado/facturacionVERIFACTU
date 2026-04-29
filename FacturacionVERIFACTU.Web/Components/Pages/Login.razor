@@ -56,6 +56,11 @@
                 Crear empresa nueva
             </a>
         </div>
+        <div style="text-align: center; margin-top: 10px; font-size: 13px;">
+            <a href="/forgot-password" style="color: #787774; text-decoration: none;">
+                ¿Olvidaste tu contraseña?
+            </a>
+        </div>
     </div>
 </div>
 
@@ -82,10 +87,15 @@
                 return;
             }
 
-            // 2. IMPORTANTE: No hace falta el Notify si usas forceLoad: true.
-            // La recarga forzada obligará al sistema a reconstruir el AuthState
-            // leyendo el SessionStorage recién guardado.
-            Nav.NavigateTo("/", forceLoad: true);
+            // 2. Redirección por rol:
+            //    - SuperAdmin => panel admin
+            //    - resto => dashboard principal
+            var destino = string.Equals(result.User?.Role, "SuperAdmin", StringComparison.OrdinalIgnoreCase)
+                ? "/admin"
+                : "/";
+
+            // IMPORTANTE: No hace falta Notify si usamos forceLoad.
+            Nav.NavigateTo(destino, forceLoad: true);
         }
         catch (Exception ex)
         {
@@ -106,7 +116,8 @@
         // Si ya está autenticado, no le dejes estar en la página de Login
         if (user.Identity is not null && user.Identity.IsAuthenticated)
         {
-            Nav.NavigateTo("/");
+            var destino = user.IsInRole("SuperAdmin") ? "/admin" : "/";
+            Nav.NavigateTo(destino);
         }
     }
     

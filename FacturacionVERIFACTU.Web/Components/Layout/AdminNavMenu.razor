@@ -1,0 +1,41 @@
+﻿@inject IAuthService AuthService
+@inject NavigationManager Nav
+
+<div class="notion-sidebar-header">
+    <div class="sidebar-logo">
+        <i class="bi bi-shield-lock-fill" style="color: #dc2626;"></i>
+        <span>SuperAdmin</span>
+    </div>
+</div>
+
+<nav class="notion-nav-group">
+    <div class="nav-section-label">Panel de control</div>
+
+    <NavLink class="nav-item-link" href="/admin" Match="NavLinkMatch.All">
+        <i class="bi bi-speedometer2"></i>    
+        <span>Dashboard</span>
+    </NavLink>
+
+    <NavLink class="nav-item-link" href="/admin/empresas">
+        <i class="bi bi-building"    ></i>
+        <span>Empresas</span>
+    </NavLink>
+    
+</nav>
+
+<nav class="notion-nav-group logout-section">
+    <hr class="sidebar-divider" />
+    <button class="nav-item-link logout-btn" @onclick="HandleLogout">
+        <i class="bi bi-box-arrow-right"></i>
+        <span>Cerrar Sesion</span>
+    </button>
+</nav>
+
+@code {
+    private async Task HandleLogout()
+    {
+        await AuthService.LogoutAsync();
+
+        Nav.NavigateTo("/admin/login", forceLoad: true);
+    }
+}

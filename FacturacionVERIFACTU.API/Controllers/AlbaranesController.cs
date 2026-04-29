@@ -35,7 +35,7 @@ namespace FacturacionVERIFACTU.API.Controllers
         /// </summary>
         [HttpGet]
         [ProducesResponseType(typeof(List<AlbaranResponseDto>), StatusCodes.Status200OK)]
-        public async Task<ActionResult<List<AlbaranResponseDto>>> ObtenerTodos([FromQuery] string? estado = null)
+        public async Task<ActionResult<List<AlbaranResponseDto>>> ObtenerTodos([FromQuery] string? estado = null, [FromQuery] int? ejercicio = null)
         {
             try
             {
@@ -45,7 +45,7 @@ namespace FacturacionVERIFACTU.API.Controllers
                     return Unauthorized(new { mensaje = "Tenant no identificado" });
                 }
 
-                var albaranes = await _albaranService.ObtenerTodosAsync(tenantId.Value, estado);
+                var albaranes = await _albaranService.ObtenerTodosAsync(tenantId.Value, estado, ejercicio);
                 return Ok(albaranes);
             }
             catch (Exception ex)

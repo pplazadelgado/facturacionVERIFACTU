@@ -438,12 +438,8 @@ namespace FacturacionVERIFACTU.API.Controllers
                 // Por simplicidad, asumo que tienes acceso al ApplicationDbContext
                 // Si no, deberías crear un método en ICierreEjercicioService
 
-                var ejercicios = new List<int>
-                {
-                    DateTime.UtcNow.Year,
-                    DateTime.UtcNow.Year - 1,
-                    DateTime.UtcNow.Year - 2
-                };
+                var ejercicios = await _cierreEjercicioService
+                    .ObtenerEjerciciosDisponiblesAsync(tenantId.Value);
 
                 return Ok(ejercicios);
             }
