@@ -169,11 +169,9 @@ namespace FacturacionVERIFACTU.API.Controllers
             }
         }
 
-        ///<summary>
-        ///Cambia el estado de un albaran
-        ///Transiciones validas
-        /// Pendiente - Entragado/anulado
-        /// Entregado - Facturado
+        /// <summary>
+        /// Cambia el estado de un albarán.
+        /// Transiciones válidas: Pendiente → Entregado/Anulado, Entregado → Facturado
         /// </summary>
         [HttpPatch("{id}/estado")]
         [ProducesResponseType(typeof(AlbaranResponseDto), StatusCodes.Status200OK)]

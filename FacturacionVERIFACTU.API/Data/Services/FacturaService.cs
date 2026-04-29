@@ -1408,7 +1408,7 @@ namespace FacturacionVERIFACTU.API.Data.Services
                     TipoImpuestoId = l.TipoImpuestoId
                 }).OrderBy(l => l.Orden).ToList(),
 
-                FechaCreaccion = DateTime.UtcNow,
+                FechaCreacion = DateTime.UtcNow,
                 FechaModificacion = factura.ActualizadoEn // ⭐ NUEVO
             };
         }

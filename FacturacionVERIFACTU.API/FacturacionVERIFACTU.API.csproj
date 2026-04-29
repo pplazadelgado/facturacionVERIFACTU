@@ -7,6 +7,8 @@
     <EnableSdkContainerDebugging>True</EnableSdkContainerDebugging>
     <ContainerBaseImage>mcr.microsoft.com/dotnet/aspnet:8.0</ContainerBaseImage>
     <UserSecretsId>c4040358-c611-4a6b-bcbd-168d17ab29c5</UserSecretsId>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

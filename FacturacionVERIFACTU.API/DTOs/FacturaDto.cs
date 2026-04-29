@@ -40,8 +40,8 @@ namespace FacturacionVERIFACTU.API.DTOs
         public decimal? PorcentajeRetencion { get; set; }
     }
 
-    ///<summary>
-    ///Dto para actuliar factura existente
+    /// <summary>
+    /// DTO para actualizar factura existente
     /// </summary>
     public class FacturaUpdateDto
     {
@@ -105,7 +105,7 @@ namespace FacturacionVERIFACTU.API.DTOs
         public List<LineaFacturaResponseDto> Lineas { get; set; } = new();
 
         //Auditoria
-        public DateTime FechaCreaccion { get; set; }
+        public DateTime FechaCreacion { get; set; }
         public DateTime? FechaModificacion { get; set; }
 
     }

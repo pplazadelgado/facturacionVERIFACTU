@@ -121,6 +121,23 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
+    options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    {
+        Title       = "FacturacionVERIFACTU API",
+        Version     = "v1",
+        Description = "API de gestión de facturación con integración VERIFACTU (AEAT). " +
+                      "Multi-tenant, JWT Authentication, EF Core + PostgreSQL.",
+        Contact = new Microsoft.OpenApi.Models.OpenApiContact
+        {
+            Name  = "Soporte FacturacionVERIFACTU",
+            Email = "soporte@tudominio.com"
+        }
+    });
+
+    var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    options.IncludeXmlComments(xmlPath);
+
     // Configurar autenticación JWT en Swagger
     options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
     {

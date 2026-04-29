@@ -74,7 +74,7 @@ namespace FacturacionVERIFACTU.API.Data.Services
         {
             try
             {
-                _logger.LogInformation($"Incicioando cierre del ejercicio {ejercicio} - Tenant {tenantId}");
+                _logger.LogInformation("Inciciando cierre del ejercicio {Ejercicio} - Tenant {tenantId}", ejercicio,tenantId);
 
 
                 // 1. Validar
@@ -104,7 +104,7 @@ namespace FacturacionVERIFACTU.API.Data.Services
 
                     await transaction.CommitAsync();
 
-                    _logger.LogInformation($"Ejercicio {ejercicio} cerrado exitosamente: Id cierre: {cierre.Id}");
+                    _logger.LogInformation("Ejercicio {ejercicio} cerrado exitosamente: Id cierre: {cierre.Id}", ejercicio,tenantId);
 
                     var mensaje = $"Ejercicio {ejercicio} cerrado exitosamente. {cierre.TotalFacturas} facturas bloqueadas";
                     var resultado = MapearACierreRealizadoDTO(cierre, mensaje);
@@ -119,7 +119,7 @@ namespace FacturacionVERIFACTU.API.Data.Services
             }
             catch(Exception ex)
             {
-                _logger.LogError(ex, $"Error al cerrar ejercicio {ejercicio}");
+                _logger.LogError(ex, "Error al cerrar ejercicio {Ejercicio}", ejercicio);
                 return (false, $"Error al cerrar ejercicio: {ex.Message}", null);
             }
         }
@@ -185,7 +185,7 @@ namespace FacturacionVERIFACTU.API.Data.Services
             }
             catch(Exception ex)
             {
-                _logger.LogError(ex, $"Error al reabrir cierre {cierreId}");
+                _logger.LogError(ex, "Error al reabrir cierre {cierreId}",cierreId);
                 return (false, $"Error al reabrir ejercicio: {ex.Message}");
             }
         }

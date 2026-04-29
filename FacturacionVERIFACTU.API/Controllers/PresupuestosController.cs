@@ -24,12 +24,12 @@ namespace FacturacionVERIFACTU.API.Controllers
             IPresupuestoService presupuestoService,
             ITenantContext tenantContext,
             IPDFService pdfService,
-            ILogger<PresupuestosController> logget)
+            ILogger<PresupuestosController> logger)
         {
             _presupuestoService = presupuestoService;
             _tenantContext = tenantContext;
             _pdfService = pdfService;
-            _logger = logget;
+            _logger = logger;
         }
 
         ///<summary>
